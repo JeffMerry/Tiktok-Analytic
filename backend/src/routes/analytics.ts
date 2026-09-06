@@ -706,4 +706,86 @@ router.get('/growth/:username', async (req: Request, res: Response) => {
     }
 });
 
+//GET /api/analytics/calendar/:username
+router.get('/calendar/:username', async (req: Request, res:Response) => {
+    try {
+        const { username } = req.params;
+
+        //รับค่า year เเละ month จาก query string (ถ้าไม่ส่งมา ให้ใช้ปีเเละเดือนปัจจุบัน)
+        const now = new Date();
+        const year = parseInt(req.query.year as string) || now.getFullYear();
+        const month = parseInt(req.query.month as string) || (now.getMonth() + 1);
+
+        // ตรวจสอบหา channel_id จาก username
+        const channelRes = await db.query<{ id: number}>(
+            'SELECT id FROM channels WHERE username = $1',
+            [username]
+        );
+        if (channelRes.rows.length === 0){
+            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องในระบบ'});
+        }
+
+        const channelId = channelRes.rows[0].id;
+
+        // Query ดึงคลิปที่ลงในเดือนเเละปีที่ระบุ
+        const query = `
+            SELECT
+                v.id,
+                v.video_id,
+                v.caption,
+                v.cover_url,
+                v.duration,
+                v.posted_at,
+                EXTRACT(DAY FROM v.posted_at)::int AS post_day,
+                TO_CHAR(v.posted_at,'HH12:MI AM') AS post_time,
+                COALESCE(vs.views, 0) AS views,
+                COALESCE(vs.likes, 0) AS likes,
+                COALESCE(vs.comments, 0) AS comments,
+                COALESCE(vs.shares, 0) AS shares,
+                COALESCE(ROUND(
+                    CASE WHEN vs.views > 0
+                    THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                    ELSE 0 END, 2
+                ),0) AS engagement_rate
+            FROM videos v
+            LEFT JOIN LATERAL (
+                    SELECT views, likes, comments, shares
+                    FROM video_stats
+                    WHERE video_id = v.id
+                    ORDER BY fetched_at DESC
+                    LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
+              AND EXTRACT(YEAR FROM v.posted_at) = $2
+              AND EXTRACT(MONTH FROM v.posted_at) = $3
+            ORDER BY v.posted_at ASC;
+        `;
+        
+        const videosRes = await db.query(query, [channelId, year, month]);
+        const videos = videosRes.rows;
+
+        //คำนวณสรุปภาพรวมของเดือนนั้น
+        const totalVideos = videos.length;
+        const totalViews = videos.reduce((sum, v) => sum + Number(v.views), 0);
+        const totalLikes = videos.reduce((sum, v) => sum + Number(v.likes), 0);
+
+        // return to frontend
+        res.json({
+            status: 'Success',
+            data: {
+                year,
+                month,
+                summary: {
+                    totalVideos,
+                    totalViews,
+                    totalLikes
+                },
+                videos
+            }
+        });
+    } catch (error: any) {
+        res.status(500).json({ status: 'Error', message: error.message});
+    }
+});
+
 export default router;

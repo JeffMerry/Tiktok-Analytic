@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
+  Calendar,
   BarChart3,
   Video,
   Users,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { label: "Overview", icon: LayoutGrid, href: "/" },
+  { label: "Calendar", icon: Calendar, href: "/calendar" },
   { label: "Analytics", icon: BarChart3, href: "/analytics" },
   { label: "Content", icon: Video, href: "/videos" },
   { label: "Audience", icon: Users, href: "#" },

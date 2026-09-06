@@ -52,6 +52,36 @@ export interface VideoItem {
   posted_at: string;
 }
 
+export interface CalendarVideoItem {
+  id: number;
+  video_id: string;
+  caption: string;
+  cover_url: string;
+  duration: number;
+  posted_at: string;
+  post_day: number;
+  post_time: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  engagement_rate: number;
+}
+
+export interface CalendarResponse {
+  status: string;
+  data: {
+    year: number;
+    month: number;
+    summary: {
+      totalVideos: number;
+      totalViews: number;
+      totalLikes: number;
+    };
+    videos: CalendarVideoItem[];
+  };
+}
+
 // 1. ดึงข้อมูลสรุปภาพรวมช่อง
 export const getChannelAnalytics = async (username: string): Promise<ChannelAnalyticsResponse> => {
   const res = await axios.get(`${API_BASE_URL}/analytics/channel/${username}`);
@@ -66,6 +96,18 @@ export const getChannelVideos = async (
 ) => {
   const res = await axios.get(`${API_BASE_URL}/analytics/videos/${username}`, {
     params: { sortBy, order: 'DESC', limit: 10, page }
+  });
+  return res.data;
+};
+
+// 3. ดึงข้อมูลปฏิทินคลิปตามเดือน/ปี
+export const getCalendarData = async (
+  username: string,
+  year: number,
+  month: number
+): Promise<CalendarResponse> => {
+  const res = await axios.get(`${API_BASE_URL}/analytics/calendar/${username}`, {
+    params: { year, month }
   });
   return res.data;
 };
