@@ -19,7 +19,9 @@ export interface BaseStatCardProps {
 function Sparkline({ data, isPositive }: { data?: number[]; isPositive: boolean }) {
   const points =
     data && data.length > 0
-      ? data
+      ? data.length === 1
+        ? [data[0], data[0]]
+        : data
       : isPositive
       ? [10, 14, 12, 18, 22, 20, 26, 24, 30, 34, 32, 40, 42, 50]
       : [50, 45, 48, 38, 40, 32, 35, 28, 30, 24, 26, 20, 18, 15];

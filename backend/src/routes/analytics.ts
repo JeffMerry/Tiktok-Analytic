@@ -164,6 +164,81 @@ router.get('/channel/:username', async (req: Request, res: Response) => {
         `;
         const topVideoRes = await db.query(topVideoQuery, [channel.id]);
 
+        // Historical daily stats for followers & total likes
+        const dailyHistoryRes = await db.query(
+            `SELECT followers, total_likes, video_count, record_date
+             FROM channel_daily_stats
+             WHERE channel_id = $1
+             ORDER BY record_date ASC;`,
+            [channel.id]
+        );
+        const dailyHistory = dailyHistoryRes.rows;
+
+        let followersChange = 0;
+        let likesChange = 0;
+        let comparisonText = 'First day tracked';
+
+        if (dailyHistory.length >= 2) {
+            const latest = dailyHistory[dailyHistory.length - 1];
+            const prev = dailyHistory[dailyHistory.length - 2];
+            
+            if (Number(prev.followers) > 0) {
+                followersChange = Number((((Number(latest.followers) - Number(prev.followers)) / Number(prev.followers)) * 100).toFixed(2));
+            }
+            if (Number(prev.total_likes) > 0) {
+                likesChange = Number((((Number(latest.total_likes) - Number(prev.total_likes)) / Number(prev.total_likes)) * 100).toFixed(2));
+            }
+            const prevDate = new Date(prev.record_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            comparisonText = `vs ${prevDate}`;
+        } else if (dailyHistory.length === 1) {
+            comparisonText = 'First day tracked';
+        }
+
+        const followersSparkline = dailyHistory.map(r => Number(r.followers));
+        const likesSparkline = dailyHistory.map(r => Number(r.total_likes));
+
+        // Recent videos trend for views & engagement sparklines
+        const recentVideosRes = await db.query(
+            `SELECT 
+                COALESCE(vs.views, 0) as views,
+                COALESCE(ROUND(
+                    CASE WHEN vs.views > 0 
+                    THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                    ELSE 0 END, 2
+                ), 0) as er
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
+            ORDER BY v.posted_at ASC NULLS LAST
+            LIMIT 20;`,
+            [channel.id]
+        );
+
+        const viewsSparkline = recentVideosRes.rows.map(r => Number(r.views));
+        const engagementSparkline = recentVideosRes.rows.map(r => Number(r.er));
+
+        let viewsChange = 0;
+        let engagementChange = 0;
+        if (viewsSparkline.length >= 2) {
+            const lastView = viewsSparkline[viewsSparkline.length - 1];
+            const avgPrevViews = viewsSparkline.slice(0, -1).reduce((a, b) => a + b, 0) / (viewsSparkline.length - 1);
+            if (avgPrevViews > 0) {
+                viewsChange = Number((((lastView - avgPrevViews) / avgPrevViews) * 100).toFixed(2));
+            }
+            
+            const lastEr = engagementSparkline[engagementSparkline.length - 1];
+            const avgPrevEr = engagementSparkline.slice(0, -1).reduce((a, b) => a + b, 0) / (engagementSparkline.length - 1);
+            if (avgPrevEr > 0) {
+                engagementChange = Number((((lastEr - avgPrevEr) / avgPrevEr) * 100).toFixed(2));
+            }
+        }
+
         res.json({
             status: 'Success',
             data: {
@@ -185,6 +260,15 @@ router.get('/channel/:username', async (req: Request, res: Response) => {
                     totalShares: Number(videoStats.total_shares),
                     avgViewsPerVideo: Number(videoStats.avg_views),
                     avgEngagementRate: Number(videoStats.avg_engagement_rate),
+                    followersChange,
+                    viewsChange,
+                    likesChange,
+                    engagementChange,
+                    comparisonText,
+                    followersSparkline,
+                    likesSparkline,
+                    viewsSparkline,
+                    engagementSparkline,
                 },
                 topVideo: topVideoRes.rows[0] || null
             }

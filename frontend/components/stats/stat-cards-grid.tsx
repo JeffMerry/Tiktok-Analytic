@@ -32,6 +32,10 @@ export interface ChannelOverviewData {
     likesChange?: number;
     engagementChange?: number;
     comparisonText?: string;
+    followersSparkline?: number[];
+    likesSparkline?: number[];
+    viewsSparkline?: number[];
+    engagementSparkline?: number[];
   };
 }
 
@@ -53,24 +57,28 @@ export function StatCardsGrid({ data }: { data: ChannelOverviewData }) {
       />
       <FollowersCard
         followers={profile.followers}
-        change={metrics.followersChange ?? 12.4}
-        comparisonText={metrics.comparisonText}
+        change={metrics.followersChange ?? 0}
+        comparisonText={metrics.comparisonText ?? "vs previous"}
+        sparklineData={metrics.followersSparkline}
       />
       <ViewsCard
         totalViews={metrics.totalViews}
         avgViews={metrics.avgViewsPerVideo}
-        change={metrics.viewsChange ?? 8.1}
-        comparisonText={metrics.comparisonText}
+        change={metrics.viewsChange ?? 0}
+        comparisonText={metrics.comparisonText ?? "vs previous"}
+        sparklineData={metrics.viewsSparkline}
       />
       <LikesCard
         likes={profile.likes || metrics.totalLikes}
-        change={metrics.likesChange ?? 5.7}
-        comparisonText={metrics.comparisonText}
+        change={metrics.likesChange ?? 0}
+        comparisonText={metrics.comparisonText ?? "vs previous"}
+        sparklineData={metrics.likesSparkline}
       />
       <EngagementCard
         rate={metrics.avgEngagementRate}
-        change={metrics.engagementChange ?? -0.4}
-        comparisonText={metrics.comparisonText}
+        change={metrics.engagementChange ?? 0}
+        comparisonText={metrics.comparisonText ?? "vs previous"}
+        sparklineData={metrics.engagementSparkline}
       />
     </div>
   );

@@ -5,8 +5,8 @@ import { BaseStatCard } from "./base-stat-card";
 
 export function EngagementCard({
   rate,
-  change = -0.4,
-  comparisonText = "vs Jun 2 - Jun 29",
+  change = 0,
+  comparisonText = "vs previous",
   sparklineData,
 }: {
   rate: number;

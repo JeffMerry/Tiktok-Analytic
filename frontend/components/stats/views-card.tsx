@@ -5,8 +5,8 @@ import { BaseStatCard } from "./base-stat-card";
 
 export function ViewsCard({
   totalViews,
-  change = 8.1,
-  comparisonText = "vs Jun 2 - Jun 29",
+  change = 0,
+  comparisonText = "vs previous",
   sparklineData,
 }: {
   totalViews: number;
