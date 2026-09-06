@@ -39,7 +39,25 @@ export interface ChannelOverviewData {
   };
 }
 
-export function StatCardsGrid({ data }: { data: ChannelOverviewData }) {
+interface StatCardsGridProps {
+  data: ChannelOverviewData;
+  selectedPeriod?: string;
+  onPeriodChange?: (period: string) => void;
+  lastUpdated?: Date | null;
+  isRefreshing?: boolean;
+  refreshSuccess?: boolean;
+  onRefresh?: () => void;
+}
+
+export function StatCardsGrid({
+  data,
+  selectedPeriod,
+  onPeriodChange,
+  lastUpdated,
+  isRefreshing,
+  refreshSuccess,
+  onRefresh,
+}: StatCardsGridProps) {
   const { profile, metrics } = data;
 
   return (
@@ -54,6 +72,12 @@ export function StatCardsGrid({ data }: { data: ChannelOverviewData }) {
         tags={profile.tags}
         profileUrl={profile.profileUrl}
         videoCount={profile.videoCount}
+        selectedPeriod={selectedPeriod}
+        onPeriodChange={onPeriodChange}
+        lastUpdated={lastUpdated}
+        isRefreshing={isRefreshing}
+        refreshSuccess={refreshSuccess}
+        onRefresh={onRefresh}
       />
 
       {/* 2. 4-Column Stat Cards Row */}

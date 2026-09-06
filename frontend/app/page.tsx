@@ -139,49 +139,18 @@ export default function Page() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  const [range, setRange] = useState("28d");
-  const ranges = ["7d", "28d", "90d", "12m"];
+  const [selectedPeriod, setSelectedPeriod] = useState("30d");
 
- return (
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+  };
+
+  return (
     <div className="flex min-h-svh bg-background">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Topbar พร้อมปุ่มกด Refresh และ Badge เช็คเวลาข้อมูลล่าสุด */}
-        <Topbar
-          rightContent={
-            <div className="flex items-center gap-3">
-              {lastUpdated && (
-                <div className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <span>
-                    ข้อมูลล่าสุด ({lastUpdated.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.)
-                  </span>
-                </div>
-              )}
-
-              <button
-                onClick={() => fetchAnalytics(true)}
-                disabled={isRefreshing || loading}
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-accent hover:text-accent-foreground active:scale-95 disabled:opacity-50"
-              >
-                {refreshSuccess ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">อัปเดตแล้ว</span>
-                  </>
-                ) : (
-                  <>
-                    <RotateCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`} />
-                    <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตข้อมูลล่าสุด"}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          }
-        >
+        {/* Topbar */}
+        <Topbar>
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-balance">
               Overview
@@ -204,7 +173,15 @@ export default function Page() {
           )}
           {!loading && !error && data && (
             <div className="space-y-6">
-              <StatCardsGrid data={data} />
+              <StatCardsGrid
+                data={data}
+                selectedPeriod={selectedPeriod}
+                onPeriodChange={handlePeriodChange}
+                lastUpdated={lastUpdated}
+                isRefreshing={isRefreshing}
+                refreshSuccess={refreshSuccess}
+                onRefresh={() => fetchAnalytics(true)}
+              />
               
               {/* Channel Growth Chart & 30-Day Growth Summary */}
               <GrowthChartCard data={growthData} />

@@ -458,17 +458,47 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
         `;
         const hourRes = await db.query(hourQuery, [channelId]);
 
-        // ชื่อวันในสัปดาห์
+        // 3. ดึงสถิติ Heatmap Matrix (7 วัน x 24 ชั่วโมง)
+        const matrixQuery = `
+            SELECT 
+                EXTRACT(DOW FROM v.posted_at) as day_index,
+                EXTRACT(HOUR FROM v.posted_at) as hour_index,
+                COUNT(v.id) as video_count,
+                COALESCE(ROUND(AVG(vs.views), 0), 0) as avg_views,
+                COALESCE(ROUND(
+                    AVG(
+                        CASE WHEN vs.views > 0 
+                        THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                        ELSE 0 END
+                    ), 2
+                ), 0) as avg_engagement
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
+            GROUP BY day_index, hour_index;
+        `;
+        const matrixRes = await db.query(matrixQuery, [channelId]);
+
+        // จัดเรียงวัน จันทร์ -> อาทิตย์ (1, 2, 3, 4, 5, 6, 0)
+        const dayOrder = [1, 2, 3, 4, 5, 6, 0];
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const dayNamesTH = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+        const dayShortTH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
-        // Map วัน (0-6) ให้ครบทุกวัน แม้บางวันไม่มีคลิป
-        const byDay = dayNames.map((name, idx) => {
-            const found = dayRes.rows.find((r: any) => Number(r.day_index) === idx);
+        // Map วัน (จันทร์ - อาทิตย์)
+        const byDay = dayOrder.map((dayIdx) => {
+            const found = dayRes.rows.find((r: any) => Number(r.day_index) === dayIdx);
             return {
-                dayIndex: idx,
-                dayName: name,
-                dayNameTH: dayNamesTH[idx],
+                dayIndex: dayIdx,
+                dayName: dayNames[dayIdx],
+                dayNameTH: dayNamesTH[dayIdx],
+                dayShortTH: dayShortTH[dayIdx],
                 videoCount: Number(found?.video_count || 0),
                 avgViews: Number(found?.avg_views || 0),
                 avgLikes: Number(found?.avg_likes || 0),
@@ -482,6 +512,7 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
             return {
                 hour: h,
                 label: `${h.toString().padStart(2, '0')}:00`,
+                shortLabel: h.toString().padStart(2, '0'),
                 videoCount: Number(found?.video_count || 0),
                 avgViews: Number(found?.avg_views || 0),
                 avgLikes: Number(found?.avg_likes || 0),
@@ -493,6 +524,41 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
         const bestDay = [...byDay].sort((a, b) => b.avgViews - a.avgViews)[0];
         const bestHour = [...byHour].sort((a, b) => b.avgViews - a.avgViews)[0];
 
+        // Map Heatmap Matrix 7 วัน x 24 ชม.
+        const maxMatrixViews = Math.max(
+            ...matrixRes.rows.map((r: any) => Number(r.avg_views || 0)),
+            1
+        );
+
+        const heatmap = dayOrder.map((dayIdx) => {
+            const hours = Array.from({ length: 24 }, (_, h) => {
+                const found = matrixRes.rows.find(
+                    (r: any) => Number(r.day_index) === dayIdx && Number(r.hour_index) === h
+                );
+                const views = Number(found?.avg_views || 0);
+                const er = Number(found?.avg_engagement || 0);
+                const count = Number(found?.video_count || 0);
+                const intensity = views > 0 ? Number((views / maxMatrixViews).toFixed(2)) : 0;
+
+                return {
+                    hour: h,
+                    label: `${h.toString().padStart(2, '0')}:00`,
+                    views,
+                    engagement: er,
+                    videoCount: count,
+                    intensity,
+                };
+            });
+
+            return {
+                dayIndex: dayIdx,
+                dayName: dayNames[dayIdx],
+                dayNameTH: dayNamesTH[dayIdx],
+                dayShortTH: dayShortTH[dayIdx],
+                hours,
+            };
+        });
+
         res.json({
             status: 'Success',
             data: {
@@ -503,7 +569,9 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
                     avgEngagement: bestDay?.avgEngagement || 0,
                 },
                 byDay,
-                byHour
+                byHour,
+                heatmap,
+                maxMatrixViews
             }
         });
     } catch (error: any) {
