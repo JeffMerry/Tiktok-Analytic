@@ -43,9 +43,9 @@ export function StatCardsGrid({ data }: { data: ChannelOverviewData }) {
   const { profile, metrics } = data;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+    <div className="space-y-4">
+      {/* 1. Channel Profile Banner */}
       <ProfileCard
-        className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2"
         displayName={profile.displayName}
         username={profile.username}
         avatarUrl={profile.avatarUrl}
@@ -55,31 +55,35 @@ export function StatCardsGrid({ data }: { data: ChannelOverviewData }) {
         profileUrl={profile.profileUrl}
         videoCount={profile.videoCount}
       />
-      <FollowersCard
-        followers={profile.followers}
-        change={metrics.followersChange ?? 0}
-        comparisonText={metrics.comparisonText ?? "vs previous"}
-        sparklineData={metrics.followersSparkline}
-      />
-      <ViewsCard
-        totalViews={metrics.totalViews}
-        avgViews={metrics.avgViewsPerVideo}
-        change={metrics.viewsChange ?? 0}
-        comparisonText={metrics.comparisonText ?? "vs previous"}
-        sparklineData={metrics.viewsSparkline}
-      />
-      <LikesCard
-        likes={profile.likes || metrics.totalLikes}
-        change={metrics.likesChange ?? 0}
-        comparisonText={metrics.comparisonText ?? "vs previous"}
-        sparklineData={metrics.likesSparkline}
-      />
-      <EngagementCard
-        rate={metrics.avgEngagementRate}
-        change={metrics.engagementChange ?? 0}
-        comparisonText={metrics.comparisonText ?? "vs previous"}
-        sparklineData={metrics.engagementSparkline}
-      />
+
+      {/* 2. 4-Column Stat Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <FollowersCard
+          followers={profile.followers}
+          change={metrics.followersChange ?? 0}
+          comparisonText={metrics.comparisonText ?? "ยอดสะสมปัจจุบัน"}
+          sparklineData={metrics.followersSparkline}
+        />
+        <ViewsCard
+          totalViews={metrics.totalViews}
+          avgViews={metrics.avgViewsPerVideo}
+          change={metrics.viewsChange ?? 0}
+          comparisonText={metrics.comparisonText ?? "ยอดสะสมปัจจุบัน"}
+          sparklineData={metrics.viewsSparkline}
+        />
+        <LikesCard
+          likes={profile.likes || metrics.totalLikes}
+          change={metrics.likesChange ?? 0}
+          comparisonText={metrics.comparisonText ?? "ยอดสะสมปัจจุบัน"}
+          sparklineData={metrics.likesSparkline}
+        />
+        <EngagementCard
+          rate={metrics.avgEngagementRate}
+          change={metrics.engagementChange ?? 0}
+          comparisonText={metrics.comparisonText ?? "ยอดสะสมปัจจุบัน"}
+          sparklineData={metrics.engagementSparkline}
+        />
+      </div>
     </div>
   );
 }

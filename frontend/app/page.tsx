@@ -212,19 +212,20 @@ export default function Page() {
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
                 <TopVideosCard videos={topVideos.length > 0 ? topVideos : undefined} />
                 <div className="space-y-6">
+                  <InteractionBreakdownCard
+                    data={{
+                      totalLikes: data.metrics.totalLikes,
+                      totalComments: data.metrics.totalComments || 0,
+                      totalShares: data.metrics.totalShares || 0,
+                      engagementRate: data.metrics.avgEngagementRate || 0,
+                    }}
+                  />
                   <QuickBenchmarksCard
                     data={{
                       avgViews: data.metrics.avgViewsPerVideo || 0,
                       avgLikes: Math.round(data.metrics.totalLikes / (data.metrics.totalVideosTracked || 1)),
                       avgComments: Math.round((data.metrics.totalComments || 0) / (data.metrics.totalVideosTracked || 1)),
                       avgShares: Math.round((data.metrics.totalShares || 0) / (data.metrics.totalVideosTracked || 1)),
-                    }}
-                  />
-                  <InteractionBreakdownCard
-                    data={{
-                      totalLikes: data.metrics.totalLikes,
-                      totalComments: data.metrics.totalComments || 0,
-                      totalShares: data.metrics.totalShares || 0,
                     }}
                   />
                 </div>
