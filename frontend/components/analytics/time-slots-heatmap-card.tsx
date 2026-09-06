@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Info } from "lucide-react";
 
 export interface HeatmapDayRow {
   dayIndex: number;
@@ -41,6 +41,7 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
     hour: string;
     views: number;
     er: number;
+    count: number;
   } | null>(null);
 
   // Demo fallback rows if DB matrix is empty
@@ -95,9 +96,9 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
   }, [data]);
 
   return (
-    <div className="w-full bg-[#10131a] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 text-zinc-100 shadow-xl overflow-hidden">
+    <div className="w-full bg-[#10131a] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 text-zinc-100 shadow-xl overflow-hidden flex flex-col justify-between">
       {/* Header & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0">
             <LayoutGrid className="w-5 h-5" />
@@ -116,7 +117,7 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
         <div className="flex items-center gap-4 flex-wrap self-start lg:self-auto text-xs">
           {/* Color Scale Legend */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-zinc-400">น้อย</span>
+            <span className="text-[11px] text-zinc-400 font-medium">น้อย</span>
             <div className="w-28 h-2.5 rounded-full bg-gradient-to-r from-[#1d4ed8] via-[#06b6d4] via-[#10b981] to-[#facc15] shadow-sm" />
             <span className="text-[11px] text-zinc-300 font-semibold">มาก</span>
           </div>
@@ -146,8 +147,8 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
       <div className="w-full overflow-x-auto pb-2">
         <div className="min-w-[760px]">
           {/* Table Header: Hour Numbers (00 - 23) */}
-          <div className="grid grid-cols-[100px_repeat(24,1fr)] gap-1 mb-1.5 text-center text-[10.5px] font-medium text-zinc-400">
-            <div className="text-left pl-2 font-semibold text-zinc-300">วัน / เวลา</div>
+          <div className="grid grid-cols-[90px_repeat(24,1fr)] gap-1 mb-1.5 text-center text-[10.5px] font-medium text-zinc-400">
+            <div className="text-left pl-2 font-semibold text-zinc-400">วัน / เวลา</div>
             {Array.from({ length: 24 }, (_, h) => (
               <div key={`h-head-${h}`} className="truncate">
                 {h.toString().padStart(2, "0")}
@@ -160,10 +161,10 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
             {rows.map((row, rIdx) => (
               <div
                 key={`row-${rIdx}`}
-                className="grid grid-cols-[100px_repeat(24,1fr)] gap-1 items-center"
+                className="grid grid-cols-[90px_repeat(24,1fr)] gap-1 items-center"
               >
                 {/* Day Header Label */}
-                <div className="flex items-center justify-between pr-2 text-xs font-semibold text-zinc-200">
+                <div className="flex items-center justify-between pr-2 text-xs font-semibold text-zinc-200 select-none">
                   <span>{row.dayShortTH}</span>
                   {row.dateLabel && (
                     <span className="text-[10px] text-zinc-400 font-normal">
@@ -184,11 +185,11 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
                           hour: cell.label,
                           views: cell.views,
                           er: cell.engagement,
+                          count: cell.videoCount,
                         })
                       }
-                      onMouseLeave={() => setHoveredCell(null)}
                       style={{ backgroundColor: cellColor }}
-                      className="h-7 sm:h-8 rounded-md transition-all hover:scale-110 hover:ring-2 hover:ring-white hover:z-10 cursor-pointer shadow-sm"
+                      className="h-7 sm:h-8 rounded-md cursor-pointer transition-colors duration-75 hover:brightness-130 hover:ring-2 hover:ring-white/90 shadow-sm"
                       title={`วัน${row.dayShortTH} เวลา ${cell.label} น. • ${cell.views.toLocaleString()} Views`}
                     />
                   );
@@ -199,29 +200,37 @@ export function TimeSlotsHeatmapCard({ data }: TimeSlotsHeatmapCardProps) {
         </div>
       </div>
 
-      {/* Hover Info Footer */}
-      {hoveredCell && (
-        <div className="mt-3 pt-3 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-300 animate-fadeIn">
-          <div className="flex items-center gap-2 font-semibold">
-            <span className="text-cyan-400">📌 วัน{hoveredCell.day}</span>
-            <span>ช่วงเวลา {hoveredCell.hour} น.</span>
+      {/* Permanent Fixed-Height Status Footer (No Layout Shift) */}
+      <div className="mt-4 pt-3 border-t border-zinc-800/80 min-h-[44px] flex items-center justify-between text-xs text-zinc-300">
+        {hoveredCell ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2 transition-all">
+            <div className="flex items-center gap-2 font-semibold">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-cyan-400">วัน{hoveredCell.day}</span>
+              <span className="text-zinc-200">ช่วงเวลา {hoveredCell.hour} น.</span>
+            </div>
+            <div className="flex items-center gap-4 text-zinc-400">
+              <span>
+                ยอดวิวเฉลี่ย:{" "}
+                <strong className="text-white font-bold">
+                  {hoveredCell.views.toLocaleString()}
+                </strong>
+              </span>
+              <span>
+                ER:{" "}
+                <strong className="text-purple-400 font-bold">
+                  {hoveredCell.er}%
+                </strong>
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span>
-              ยอดวิวเฉลี่ย:{" "}
-              <strong className="text-white font-bold">
-                {hoveredCell.views.toLocaleString()}
-              </strong>
-            </span>
-            <span>
-              ER:{" "}
-              <strong className="text-purple-400 font-bold">
-                {hoveredCell.er}%
-              </strong>
-            </span>
+        ) : (
+          <div className="flex items-center gap-2 text-zinc-400 text-[11.5px]">
+            <Info className="w-3.5 h-3.5 text-zinc-400" />
+            <span>เลื่อนเมาส์ไปชี้ที่ช่องเวลาเพื่อดูสถิติยอดวิวและอัตราการมีส่วนร่วมอย่างละเอียด</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

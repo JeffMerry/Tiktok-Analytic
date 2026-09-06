@@ -69,13 +69,7 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white transition-colors bg-zinc-900/90 border border-zinc-800 px-3.5 py-1.5 rounded-xl shadow-sm"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              กลับหน้า Overview
-            </Link>
+            
           </div>
         </Topbar>
 

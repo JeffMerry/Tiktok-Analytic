@@ -156,7 +156,7 @@ export default function Page() {
               Overview
             </h1>
             <p className="text-sm text-muted-foreground">
-              Performance metrics & latest database channel analytics
+              ข้อมูลวิเคราะห์ช่องทางฐานข้อมูลล่าสุด
             </p>
           </div>
         </Topbar>
