@@ -764,10 +764,28 @@ router.get('/calendar/:username', async (req: Request, res:Response) => {
         const videosRes = await db.query(query, [channelId, year, month]);
         const videos = videosRes.rows;
 
-        //คำนวณสรุปภาพรวมของเดือนนั้น
-        const totalVideos = videos.length;
-        const totalViews = videos.reduce((sum, v) => sum + Number(v.views), 0);
-        const totalLikes = videos.reduce((sum, v) => sum + Number(v.likes), 0);
+        // Query สรุปจำนวนคลิปและวันที่ลงคลิปของทั้ง 12 เดือนในปีนั้น (สำหรับ Year View)
+        const yearStatsRes = await db.query(`
+            SELECT 
+                EXTRACT(MONTH FROM posted_at)::int AS month_num,
+                COUNT(id)::int AS video_count,
+                ARRAY_AGG(DISTINCT EXTRACT(DAY FROM posted_at)::int) AS active_days
+            FROM videos
+            WHERE channel_id = $1
+              AND EXTRACT(YEAR FROM posted_at) = $2
+            GROUP BY month_num;
+        `, [channelId, year]);
+
+        // Map ข้อมูล 12 เดือนให้ครบถ้วน
+        const yearMonthlyStats = Array.from({ length: 12 }, (_, i) => {
+            const mNum = i + 1;
+            const found = yearStatsRes.rows.find((r: any) => r.month_num === mNum);
+            return {
+                month: mNum,
+                videoCount: found ? Number(found.video_count) : 0,
+                activeDays: found && found.active_days ? found.active_days : []
+            };
+        });
 
         // return to frontend
         res.json({
@@ -775,6 +793,7 @@ router.get('/calendar/:username', async (req: Request, res:Response) => {
             data: {
                 year,
                 month,
+                yearMonthlyStats,
                 summary: {
                     totalVideos,
                     totalViews,

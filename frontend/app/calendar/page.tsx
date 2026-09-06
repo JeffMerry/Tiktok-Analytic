@@ -14,12 +14,14 @@ import {
   MessageCircle,
   Share2,
   ExternalLink,
-  X,
   Sparkles,
   Clock,
   Loader2,
+  Video,
+  Eye,
+  ArrowUpRight,
 } from "lucide-react";
-import { getCalendarData, CalendarVideoItem } from "@/src/services/api";
+import { getCalendarData, CalendarVideoItem, YearMonthStat } from "@/src/services/api";
 
 function TikTokIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
@@ -57,8 +59,8 @@ export default function CalendarPage() {
 
   // Data states
   const [videos, setVideos] = useState<CalendarVideoItem[]>([]);
+  const [yearMonthlyStats, setYearMonthlyStats] = useState<YearMonthStat[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedVideo, setSelectedVideo] = useState<CalendarVideoItem | null>(null);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -78,9 +80,17 @@ export default function CalendarPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const res = await getCalendarData("jeffmerry", activeYear, activeMonthIndex + 1);
+        const res = await getCalendarData("jjayallday", activeYear, activeMonthIndex + 1);
         if (isMounted && res && res.data) {
-          setVideos(res.data.videos || []);
+          const vids = res.data.videos || [];
+          setVideos(vids);
+          if (res.data.yearMonthlyStats) {
+            setYearMonthlyStats(res.data.yearMonthlyStats);
+          }
+          // If in month view and current selectedDay has no videos but others do, default smoothly
+          if (vids.length > 0 && !vids.some((v) => v.post_day === selectedDay)) {
+            setSelectedDay(vids[0].post_day);
+          }
         }
       } catch (err) {
         console.error("Failed to load calendar data:", err);
@@ -132,6 +142,18 @@ export default function CalendarPage() {
     };
   });
 
+  // Selected Day vs Selected Month videos and metrics
+  const selectedDayVideos = videosByDay[selectedDay] || [];
+  const selectedDayTotalViews = selectedDayVideos.reduce((sum, v) => sum + Number(v.views), 0);
+  const selectedDayTotalLikes = selectedDayVideos.reduce((sum, v) => sum + Number(v.likes), 0);
+
+  // Month overview stats for Year mode
+  const monthTotalViews = videos.reduce((sum, v) => sum + Number(v.views), 0);
+  const monthTotalLikes = videos.reduce((sum, v) => sum + Number(v.likes), 0);
+
+  // Active videos to display in inspector panel based on viewMode
+  const activeInspectorVideos = viewMode === "Year" ? videos : selectedDayVideos;
+
   return (
     <div className="flex min-h-svh bg-[#0b0e14] text-zinc-100 font-sans">
       <Sidebar />
@@ -149,9 +171,9 @@ export default function CalendarPage() {
           </div>
         </Topbar>
 
-        <main className="flex-1 p-4 lg:p-6">
+        <main className="flex-1 p-4 lg:p-6 space-y-6">
           {/* Full-Width Calendar Container */}
-          <div className="w-full flex flex-col bg-[#10141e] border border-zinc-800/80 rounded-2xl p-5 sm:p-7 shadow-2xl overflow-hidden min-h-[calc(100vh-120px)]">
+          <div className="w-full flex flex-col bg-[#10141e] border border-zinc-800/80 rounded-2xl p-5 sm:p-7 shadow-2xl overflow-hidden">
             {/* Calendar Controls Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/80">
               {/* Left: Navigation Header */}
@@ -160,7 +182,7 @@ export default function CalendarPage() {
                   {viewMode === "Year"
                     ? `${activeYear}`
                     : viewMode === "Week"
-                    ? `Week 3 • ${months[activeMonthIndex]} ${activeYear}`
+                    ? `Week • ${months[activeMonthIndex]} ${activeYear}`
                     : `${months[activeMonthIndex]} ${activeYear}`}
                 </h2>
 
@@ -240,43 +262,76 @@ export default function CalendarPage() {
 
             {/* View 1: YEAR VIEW (12 Months Grid Overview) */}
             {viewMode === "Year" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-6">
-                {months.map((m, idx) => {
-                  const isCurrent = idx === activeMonthIndex;
-                  return (
-                    <div
-                      key={m}
-                      onClick={() => {
-                        setActiveMonthIndex(idx);
-                        setViewMode("Month");
-                      }}
-                      className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                        isCurrent
-                          ? "border-cyan-500/80 bg-[#121c29] ring-1 ring-cyan-500/30"
-                          : "border-zinc-800/80 bg-[#121620]/90 hover:border-zinc-700 hover:bg-[#161c28]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-white">{m}</span>
-                        <span className="text-[11px] font-semibold text-cyan-400">
-                          {isCurrent ? `${videos.length} Posts` : "—"}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-7 gap-1">
-                        {Array.from({ length: 28 }).map((_, dIdx) => (
-                          <div
-                            key={dIdx}
-                            className={`h-4 rounded-sm transition-colors ${
-                              isCurrent && videosByDay[dIdx + 1]
-                                ? "bg-cyan-500/50"
-                                : "bg-zinc-800/40"
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-zinc-400">
+                    แสดงภาพรวมจำนวนคลิปทั้ง 12 เดือน — คลิกเลือกเดือนเพื่อดูสถิติและคลิปด้านล่าง
+                  </p>
+                  <button
+                    onClick={() => setViewMode("Month")}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
+                  >
+                    เปิดมุมมองปฏิทินรายเดือน <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {months.map((m, idx) => {
+                    const isSelectedMonth = idx === activeMonthIndex;
+                    const monthStat = yearMonthlyStats.find((s) => s.month === idx + 1);
+                    const count = monthStat ? monthStat.videoCount : isSelectedMonth ? videos.length : 0;
+                    const activeDays = monthStat?.activeDays || [];
+
+                    return (
+                      <div
+                        key={m}
+                        onClick={() => setActiveMonthIndex(idx)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                          isSelectedMonth
+                            ? "border-cyan-500/90 bg-[#121c29] ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/40"
+                            : "border-zinc-800/80 bg-[#121620]/90 hover:border-zinc-700 hover:bg-[#161c28]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span
+                            className={`text-sm font-bold ${
+                              isSelectedMonth ? "text-cyan-300" : "text-white"
                             }`}
-                          />
-                        ))}
+                          >
+                            {m}
+                          </span>
+                          <span
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                              count > 0
+                                ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/30"
+                                : "bg-zinc-900 text-zinc-500 border-zinc-800"
+                            }`}
+                          >
+                            {count > 0 ? `${count} คลิป` : "0 คลิป"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {Array.from({ length: 28 }).map((_, dIdx) => {
+                            const hasVideo =
+                              activeDays.includes(dIdx + 1) ||
+                              (isSelectedMonth && !!videosByDay[dIdx + 1]);
+
+                            return (
+                              <div
+                                key={dIdx}
+                                className={`h-3.5 rounded-sm transition-colors ${
+                                  hasVideo
+                                    ? "bg-cyan-500/70 shadow-[0_0_4px_rgba(6,182,212,0.5)]"
+                                    : "bg-zinc-800/40"
+                                }`}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -301,9 +356,9 @@ export default function CalendarPage() {
                       <div
                         key={cell.cellIndex}
                         onClick={() => cell.isCurrentMonth && setSelectedDay(cell.dayNum)}
-                        className={`group min-h-[115px] sm:min-h-[130px] rounded-xl border p-2 sm:p-2.5 flex flex-col justify-between transition-all cursor-pointer ${
+                        className={`group min-h-[110px] sm:min-h-[125px] rounded-xl border p-2 sm:p-2.5 flex flex-col justify-between transition-all cursor-pointer ${
                           isSelected
-                            ? "border-cyan-500/90 bg-[#121c29] ring-2 ring-cyan-500/30 shadow-lg shadow-cyan-950/40"
+                            ? "border-cyan-500/90 bg-[#121c29] ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/40"
                             : cell.isCurrentMonth
                             ? "border-zinc-800/80 bg-[#121620]/90 hover:border-zinc-700 hover:bg-[#161c28]"
                             : "border-zinc-900/40 bg-zinc-950/20 opacity-30 cursor-default"
@@ -314,7 +369,7 @@ export default function CalendarPage() {
                           <span
                             className={`text-xs font-bold ${
                               isSelected
-                                ? "text-cyan-400"
+                                ? "text-cyan-400 font-extrabold"
                                 : cell.isCurrentMonth
                                 ? "text-zinc-300"
                                 : "text-zinc-600"
@@ -335,11 +390,11 @@ export default function CalendarPage() {
                             {cell.videos.slice(0, 2).map((video) => (
                               <div
                                 key={video.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedVideo(video);
-                                }}
-                                className="group/item flex items-center gap-1.5 p-1 rounded-lg bg-zinc-900/95 border border-zinc-800/90 hover:border-cyan-500/60 hover:bg-zinc-900 transition-all shadow-sm"
+                                className={`group/item flex items-center gap-1.5 p-1 rounded-lg border transition-all shadow-sm ${
+                                  isSelected
+                                    ? "bg-cyan-950/40 border-cyan-500/40"
+                                    : "bg-zinc-900/95 border-zinc-800/90 hover:border-zinc-700"
+                                }`}
                               >
                                 <TikTokIcon className="w-3 h-3" />
                                 <div className="min-w-0 flex-1">
@@ -421,112 +476,173 @@ export default function CalendarPage() {
               </div>
             )}
           </div>
-        </main>
-      </div>
 
-      {/* Video Detail Modal */}
-      {selectedVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-[#121622] border border-zinc-700/80 p-6 shadow-2xl space-y-5">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <TikTokIcon className="w-4 h-4" />
-                <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
-                  TikTok Video Info
-                </span>
+          {/* Persistent Selected Day / Month Inspector Panel (แสดงข้อมูลค้างไว้ด้านล่างตลอดเวลา) */}
+          <div className="bg-[#10141e] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+            {/* Inspector Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                  <CalendarIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    {viewMode === "Year" ? (
+                      <>
+                        วิดีโอที่เผยแพร่ประจำเดือน {months[activeMonthIndex]} {activeYear}
+                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          {videos.length} คลิป
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        วิดีโอที่เผยแพร่วันที่ {selectedDay} {months[activeMonthIndex]} {activeYear}
+                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          {selectedDayVideos.length} คลิป
+                        </span>
+                      </>
+                    )}
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {viewMode === "Year"
+                      ? videos.length > 0
+                        ? `รายละเอียดและสถิติวิดีโอทั้งหมดที่ปล่อยในเดือน ${months[activeMonthIndex]}`
+                        : `ไม่มีประวัติการเผยแพร่วิดีโอในเดือน ${months[activeMonthIndex]}`
+                      : selectedDayVideos.length > 0
+                      ? "รายละเอียดและสถิติวิดีโอที่ปล่อยในวันที่เลือก"
+                      : "ไม่มีประวัติการเผยแพร่วิดีโอในวันนี้"}
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="w-8 h-8 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Video Cover & Caption */}
-            <div className="flex gap-4">
-              {selectedVideo.cover_url && (
-                <div className="relative w-24 h-32 rounded-xl overflow-hidden bg-zinc-900 shrink-0 border border-zinc-700">
-                  <Image
-                    src={selectedVideo.cover_url}
-                    alt={selectedVideo.caption}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
+              {activeInspectorVideos.length > 0 && (
+                <div className="flex items-center gap-3 self-start sm:self-auto">
+                  <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-300">
+                    ยอดวิวรวม:{" "}
+                    <span className="font-bold text-cyan-400">
+                      {formatNumber(viewMode === "Year" ? monthTotalViews : selectedDayTotalViews)}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-300">
+                    ยอดไลก์รวม:{" "}
+                    <span className="font-bold text-rose-400">
+                      {formatNumber(viewMode === "Year" ? monthTotalLikes : selectedDayTotalLikes)}
+                    </span>
+                  </div>
                 </div>
               )}
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-semibold text-white leading-snug line-clamp-3">
-                  {selectedVideo.caption || "ไม่มีแคปชัน"}
-                </p>
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>
-                    วันที่ {selectedVideo.post_day} {months[activeMonthIndex]} {activeYear} • {selectedVideo.post_time}
-                  </span>
-                </div>
-                {selectedVideo.duration > 0 && (
-                  <div className="text-[11px] text-zinc-400">
-                    ความยาว: <span className="text-zinc-200">{selectedVideo.duration} วินาที</span>
+            </div>
+
+            {/* Video Cards Grid */}
+            {activeInspectorVideos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+                {activeInspectorVideos.map((video) => (
+                  <div
+                    key={video.id}
+                    className="flex flex-col justify-between p-4 rounded-xl bg-[#121622] border border-zinc-800 hover:border-cyan-500/50 hover:bg-[#151b2a] transition-all space-y-3 group shadow-md"
+                  >
+                    <div className="flex gap-3">
+                      {video.cover_url && (
+                        <div className="relative w-20 h-28 rounded-lg overflow-hidden bg-zinc-900 shrink-0 border border-zinc-800">
+                          <Image
+                            src={video.cover_url}
+                            alt={video.caption}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            unoptimized
+                          />
+                          {video.duration > 0 && (
+                            <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/80 text-[9px] font-mono text-zinc-300">
+                              {video.duration}s
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mb-1">
+                            <TikTokIcon className="w-3 h-3" />
+                            <Clock className="w-3 h-3 text-cyan-400 ml-1" />
+                            <span className="font-mono text-zinc-300">
+                              วันที่ {video.post_day} • {video.post_time}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-white leading-snug line-clamp-3 group-hover:text-cyan-200 transition-colors">
+                            {video.caption || "ไม่มีแคปชัน"}
+                          </p>
+                        </div>
+
+                        <a
+                          href={`https://www.tiktok.com/@jjayallday/video/${video.video_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 pt-2 transition-colors"
+                        >
+                          ดูคลิปบน TikTok <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Stats Metrics Mini Grid */}
+                    <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-zinc-800/60 text-center">
+                      <div className="p-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80">
+                        <div className="text-[9px] text-zinc-400 flex items-center justify-center gap-0.5">
+                          <Play className="w-2.5 h-2.5 text-cyan-400 fill-current" /> Views
+                        </div>
+                        <div className="text-xs font-bold text-white mt-0.5">
+                          {formatNumber(video.views)}
+                        </div>
+                      </div>
+
+                      <div className="p-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80">
+                        <div className="text-[9px] text-zinc-400 flex items-center justify-center gap-0.5">
+                          <Heart className="w-2.5 h-2.5 text-rose-500 fill-current" /> Likes
+                        </div>
+                        <div className="text-xs font-bold text-white mt-0.5">
+                          {formatNumber(video.likes)}
+                        </div>
+                      </div>
+
+                      <div className="p-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80">
+                        <div className="text-[9px] text-zinc-400 flex items-center justify-center gap-0.5">
+                          <MessageCircle className="w-2.5 h-2.5 text-blue-400" /> Comm.
+                        </div>
+                        <div className="text-xs font-bold text-white mt-0.5">
+                          {formatNumber(video.comments)}
+                        </div>
+                      </div>
+
+                      <div className="p-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80">
+                        <div className="text-[9px] text-zinc-400 flex items-center justify-center gap-0.5">
+                          <Sparkles className="w-2.5 h-2.5 text-emerald-400" /> ER %
+                        </div>
+                        <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                          {video.engagement_rate}%
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
-
-            {/* Stats Metrics Grid */}
-            <div className="grid grid-cols-4 gap-2 pt-2">
-              <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
-                <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1 mb-1">
-                  <Play className="w-3 h-3 text-cyan-400 fill-current" /> Views
-                </div>
-                <div className="text-sm font-bold text-white">
-                  {formatNumber(selectedVideo.views)}
-                </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-zinc-500 space-y-2">
+                <Video className="w-8 h-8 text-zinc-600" />
+                <p className="text-xs text-zinc-400 font-medium">
+                  {viewMode === "Year"
+                    ? `ไม่มีวิดีโอที่เผยแพร่ในเดือน ${months[activeMonthIndex]} ${activeYear}`
+                    : `ไม่มีวิดีโอที่เผยแพร่ในวันที่ ${selectedDay} ${months[activeMonthIndex]} ${activeYear}`}
+                </p>
+                <span className="text-[11px] text-zinc-600">
+                  {viewMode === "Year"
+                    ? "คลิกเลือกเดือนอื่นในการ์ดด้านบนเพื่อดูสถิติและคลิปของเดือนนั้น"
+                    : "คลิกเลือกวันอื่นที่มีตัวเลข Badge บนปฏิทินเพื่อดูรายละเอียดคลิป"}
+                </span>
               </div>
-
-              <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
-                <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1 mb-1">
-                  <Heart className="w-3 h-3 text-rose-500 fill-current" /> Likes
-                </div>
-                <div className="text-sm font-bold text-white">
-                  {formatNumber(selectedVideo.likes)}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
-                <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1 mb-1">
-                  <MessageCircle className="w-3 h-3 text-blue-400" /> Comments
-                </div>
-                <div className="text-sm font-bold text-white">
-                  {formatNumber(selectedVideo.comments)}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
-                <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1 mb-1">
-                  <Sparkles className="w-3 h-3 text-emerald-400" /> ER %
-                </div>
-                <div className="text-sm font-bold text-emerald-400">
-                  {selectedVideo.engagement_rate}%
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end pt-2">
-              <a
-                href={`https://www.tiktok.com/@jeffmerry/video/${selectedVideo.video_id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white transition-all shadow-md shadow-cyan-500/20"
-              >
-                ดูคลิปบน TikTok <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+            )}
           </div>
-        </div>
-      )}
+        </main>
+      </div>
     </div>
   );
 }

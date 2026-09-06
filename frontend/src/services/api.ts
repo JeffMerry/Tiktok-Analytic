@@ -68,11 +68,18 @@ export interface CalendarVideoItem {
   engagement_rate: number;
 }
 
+export interface YearMonthStat {
+  month: number;
+  videoCount: number;
+  activeDays: number[];
+}
+
 export interface CalendarResponse {
   status: string;
   data: {
     year: number;
     month: number;
+    yearMonthlyStats?: YearMonthStat[];
     summary: {
       totalVideos: number;
       totalViews: number;
