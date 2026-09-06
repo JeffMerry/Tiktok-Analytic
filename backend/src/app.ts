@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import db from './config/db';
 import {fetchAndSaveChannel, initialBackfillChannelVideos} from './services/tiktokApi';
-import { startCronJobs } from './services/scheduler';
 import analyticsRouter from './routes/analytics';
 dotenv.config();
 
@@ -62,5 +61,4 @@ app.get('/api/backfill/:username', async (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
     console.log(`🚀 TypeScript Server listening on http://localhost:${PORT}`);
-    startCronJobs();
 });

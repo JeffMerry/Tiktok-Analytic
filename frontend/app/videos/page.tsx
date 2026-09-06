@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { TopVideosCard, TopVideoItem } from "@/components/stats/top-videos-card";
 import { ArrowLeft, Video, Loader2, CheckCircle2 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + "M";
@@ -75,7 +76,7 @@ export default function VideosPage() {
       }
 
       const res = await fetch(
-        `http://localhost:5000/api/analytics/videos/jjayallday?page=${pageNum}&limit=20&sortBy=views_count&order=DESC`
+        `${API_BASE_URL}/analytics/videos/jjayallday?page=${pageNum}&limit=20&sortBy=views_count&order=DESC`
       );
 
       if (!res.ok) {

@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { ArrowLeft, BarChart3 } from "lucide-react";
 import { BestTimeCard, BestTimeData } from "@/components/best-time-card";
+import { API_BASE_URL } from "@/lib/config";
 
 export default function AnalyticsPage() {
   const [bestTimeData, setBestTimeData] = useState<BestTimeData | null>(null);
@@ -17,7 +18,7 @@ export default function AnalyticsPage() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch("http://localhost:5000/api/analytics/best-time/jjayallday");
+        const res = await fetch(`${API_BASE_URL}/analytics/best-time/jjayallday`);
         if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูล Best Time to Post ได้");
         const json = await res.json();
         if (json.data) {

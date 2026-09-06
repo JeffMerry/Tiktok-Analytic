@@ -8,6 +8,7 @@ import { TopVideosCard, TopVideoItem } from "@/components/stats/top-videos-card"
 import { QuickBenchmarksCard } from "@/components/stats/quick-benchmarks-card";
 import { InteractionBreakdownCard } from "@/components/stats/interaction-breakdown-card";
 import { RotateCw, Check} from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + "M";
@@ -38,7 +39,7 @@ export default function Page() {
       // ให้สั่งยิง API สแครปข้อมูลสดล่าสุดจาก TikTok เข้า Database ก่อน
       if (isManualRefresh) {
         try {
-          const trackRes = await fetch("http://localhost:5000/api/track/jjayallday");
+          const trackRes = await fetch(`${API_BASE_URL}/track/jjayallday`);
           if (!trackRes.ok) {
             console.warn("⚠️ ไม่สามารถ Sync ข้อมูลสดจาก TikTok ได้ ดึงข้อมูลล่าสุดจาก DB แทน");
           }
@@ -48,8 +49,8 @@ export default function Page() {
       }
 
       const [channelRes, videosRes] = await Promise.all([
-        fetch("http://localhost:5000/api/analytics/channel/jjayallday"),
-        fetch("http://localhost:5000/api/analytics/videos/jjayallday?sortBy=views_count&order=DESC&limit=5")
+        fetch(`${API_BASE_URL}/analytics/channel/jjayallday`),
+        fetch(`${API_BASE_URL}/analytics/videos/jjayallday?sortBy=views_count&order=DESC&limit=5`)
       ]);
 
       if ( !channelRes.ok) {
