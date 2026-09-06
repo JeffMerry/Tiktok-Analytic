@@ -511,4 +511,131 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
     }
 });
 
+// 5. Channel Growth History (30 Days) GET /api/analytics/growth/:username
+router.get('/growth/:username', async (req: Request, res: Response) => {
+    try {
+        const { username } = req.params;
+        const days = parseInt(req.query.days as string) || 30;
+
+        const channelRes = await db.query<{ id: number }>('SELECT id FROM channels WHERE username = $1', [username]);
+        if (channelRes.rows.length === 0) {
+            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องในระบบนี้' });
+        }
+        const channelId = channelRes.rows[0].id;
+
+        // Current total views across all videos
+        const viewsRes = await db.query(`
+            SELECT COALESCE(SUM(vs.views), 0) as total_views
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views FROM video_stats WHERE video_id = v.id ORDER BY fetched_at DESC LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1;
+        `, [channelId]);
+        const currentTotalViews = Number(viewsRes.rows[0]?.total_views || 0);
+
+        // Fetch daily stats ordered by date ascending
+        const historyRes = await db.query(`
+            SELECT 
+                record_date,
+                followers,
+                total_likes,
+                video_count
+            FROM channel_daily_stats
+            WHERE channel_id = $1
+            ORDER BY record_date ASC
+            LIMIT $2;
+        `, [channelId, days]);
+
+        const thaiMonths = [
+            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+        ];
+
+        const chartData = historyRes.rows.map((row: any) => {
+            const dateObj = new Date(row.record_date);
+            const dayNum = dateObj.getDate();
+            const monthText = thaiMonths[dateObj.getMonth()];
+            const yearBE = dateObj.getFullYear() + 543;
+
+            return {
+                date: row.record_date,
+                label: `${dayNum} ${monthText}`,
+                fullLabel: `${dayNum} ${monthText} ${yearBE}`,
+                followers: Number(row.followers || 0),
+                likes: Number(row.total_likes || 0),
+                videoCount: Number(row.video_count || 0),
+                views: currentTotalViews,
+            };
+        });
+
+        // Summary calculations
+        let followersDiff = 0;
+        let followersPct = 0;
+        let likesDiff = 0;
+        let likesPct = 0;
+        let videoDiff = 0;
+        let videoPct = 0;
+        let viewsDiff = 0;
+        let viewsPct = 0;
+
+        if (chartData.length >= 2) {
+            const first = chartData[0];
+            const last = chartData[chartData.length - 1];
+
+            followersDiff = last.followers - first.followers;
+            followersPct = first.followers > 0 ? Number(((followersDiff / first.followers) * 100).toFixed(1)) : 0;
+
+            likesDiff = last.likes - first.likes;
+            likesPct = first.likes > 0 ? Number(((likesDiff / first.likes) * 100).toFixed(1)) : 0;
+
+            videoDiff = last.videoCount - first.videoCount;
+            videoPct = first.videoCount > 0 ? Number(((videoDiff / first.videoCount) * 100).toFixed(1)) : 0;
+
+            viewsDiff = last.views - first.views;
+            viewsPct = first.views > 0 ? Number(((viewsDiff / first.views) * 100).toFixed(1)) : 0;
+        }
+
+        const latestRecord = chartData[chartData.length - 1] || {
+            followers: 0,
+            likes: 0,
+            videoCount: 0,
+            views: currentTotalViews,
+        };
+
+        res.json({
+            status: 'Success',
+            data: {
+                days,
+                chartData,
+                summary: {
+                    periodText: `สรุปการเติบโต ${days} วัน`,
+                    followers: {
+                        current: latestRecord.followers,
+                        diff: followersDiff,
+                        percent: followersPct
+                    },
+                    views: {
+                        current: latestRecord.views,
+                        diff: viewsDiff,
+                        percent: viewsPct
+                    },
+                    likes: {
+                        current: latestRecord.likes,
+                        diff: likesDiff,
+                        percent: likesPct
+                    },
+                    videoCount: {
+                        current: latestRecord.videoCount,
+                        diff: videoDiff,
+                        percent: videoPct
+                    }
+                }
+            }
+        });
+    } catch (error: any) {
+        res.status(500).json({ status: 'Error', message: error.message });
+    }
+});
+
 export default router;

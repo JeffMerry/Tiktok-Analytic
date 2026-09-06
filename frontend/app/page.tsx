@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback} from "react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { StatCardsGrid, ChannelOverviewData } from "@/components/stats/stat-cards-grid";
+import { GrowthChartCard, GrowthData } from "@/components/stats/growth-chart-card";
 import { TopVideosCard, TopVideoItem } from "@/components/stats/top-videos-card";
 import { QuickBenchmarksCard } from "@/components/stats/quick-benchmarks-card";
 import { InteractionBreakdownCard } from "@/components/stats/interaction-breakdown-card";
@@ -18,6 +19,7 @@ function formatNumber(num: number): string {
 
 export default function Page() {
   const [data, setData] = useState<ChannelOverviewData | null>(null);
+  const [growthData, setGrowthData] = useState<GrowthData | null>(null);
   const [topVideos, setTopVideos] = useState<TopVideoItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -48,9 +50,10 @@ export default function Page() {
         }
       }
 
-      const [channelRes, videosRes] = await Promise.all([
+      const [channelRes, videosRes, growthRes] = await Promise.all([
         fetch(`${API_BASE_URL}/analytics/channel/jjayallday`),
-        fetch(`${API_BASE_URL}/analytics/videos/jjayallday?sortBy=views_count&order=DESC&limit=5`)
+        fetch(`${API_BASE_URL}/analytics/videos/jjayallday?sortBy=views_count&order=DESC&limit=5`),
+        fetch(`${API_BASE_URL}/analytics/growth/jjayallday?days=30`),
       ]);
 
       if ( !channelRes.ok) {
@@ -107,6 +110,13 @@ export default function Page() {
             };
           });
           setTopVideos(mapped);
+        }
+      }
+
+      if (growthRes.ok) {
+        const growthResult = await growthRes.json();
+        if (growthResult.data) {
+          setGrowthData(growthResult.data);
         }
       }
 
@@ -195,6 +205,10 @@ export default function Page() {
           {!loading && !error && data && (
             <div className="space-y-6">
               <StatCardsGrid data={data} />
+              
+              {/* Channel Growth Chart & 30-Day Growth Summary */}
+              <GrowthChartCard data={growthData} />
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
                 <TopVideosCard videos={topVideos.length > 0 ? topVideos : undefined} />
                 <div className="space-y-6">
