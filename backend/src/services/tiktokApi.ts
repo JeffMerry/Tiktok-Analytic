@@ -199,7 +199,7 @@ export async function initialBackfillChannelVideos(
   while (hasMore) {
     try {
       console.log(`⏳ [Backfill] กำลังดึงชุดคลิปที่ Cursor: ${cursor}...`);
-      const apiRes = await tiktokApi.get('/user/posts', {
+      const apiRes: any = await tiktokApi.get('/user/posts', {
         params: { 
           unique_id: username, 
           count: BATCH_SIZE,
@@ -208,7 +208,7 @@ export async function initialBackfillChannelVideos(
         }
       });
 
-      const resData = apiRes.data.data || apiRes.data;
+      const resData: any = apiRes.data?.data || apiRes.data;
       const videosList = resData?.videos || [];
 
       if (videosList.length === 0) {

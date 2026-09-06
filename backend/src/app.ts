@@ -24,29 +24,29 @@ app.get('/health', async (req: Request, res: Response) => {
     }
 });
 
-app.get('/api/track/:username', async (req:Request, res: Response ) => {
+app.get('/api/track/:username', async (req: Request, res: Response) => {
     try {
-        const {username } = req.params;
+        const username = req.params.username as string;
         const data = await fetchAndSaveChannel(username);
-        res.json({success:true, data});
+        res.json({ success: true, data });
     } catch (error: any) {
-        res.status(500).json({ sucess: false, error: error.message});
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-app.get('/api/backfill/:username', async (req:Request, res: Response) => {
-    try{
-        const { username } = req.params;
+app.get('/api/backfill/:username', async (req: Request, res: Response) => {
+    try {
+        const username = req.params.username as string;
 
         const channelRes = await db.query<{ id: number }>('SELECT id FROM channels WHERE username = $1', [username]);
     
-    if (channelRes.rows.length === 0) {
-      return res.status(404).json({ status: 'Error', message: 'กรุณาเรียก /api/track/:username ก่อน เพื่อสร้างช่องในระบบ' });
-    }
-    const channelId = channelRes.rows[0].id;
+        if (channelRes.rows.length === 0) {
+            return res.status(404).json({ status: 'Error', message: 'กรุณาเรียก /api/track/:username ก่อน เพื่อสร้างช่องในระบบ' });
+        }
+        const channelId = channelRes.rows[0].id;
 
-    // เริ่มรัน Backfill แบบยิงวนลูปจนหมดช่อง
-    const result = await initialBackfillChannelVideos(channelId, username);
+        // เริ่มรัน Backfill แบบยิงวนลูปจนหมดช่อง
+        const result = await initialBackfillChannelVideos(channelId, username);
 
     res.json({
       status: 'Success',
