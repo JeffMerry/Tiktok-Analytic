@@ -146,12 +146,12 @@ export function TopVideosCard({
         )}
       </div>
       {/* Table Section */}
-      <div className="w-full">
-        <table className="w-full text-left border-collapse">
+      <div className="w-full overflow-x-auto pb-1">
+        <table className="w-full min-w-[480px] sm:min-w-[540px] text-left border-collapse">
           <thead>
             <tr className="text-[10px] sm:text-[11px] font-medium text-zinc-400 border-b border-zinc-800/60">
               <th className="py-2 px-1 w-5 text-center">#</th>
-              <th className="py-2 px-1">Video</th>
+              <th className="py-2 px-1 min-w-[160px]">Video</th>
               <th className="py-2 px-1">Views</th>
               <th className="py-2 px-1">Likes</th>
               <th className="py-2 px-1">Comments</th>

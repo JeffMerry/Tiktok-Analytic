@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
           </div>
         </Topbar>
 
-        <main className="flex-1 space-y-6 px-5 py-6 sm:px-8">
+        <main className="flex-1 space-y-6 px-4 py-5 sm:px-6 lg:px-8 pb-24 lg:pb-8">
           {/* AI Recommendation Banner */}
           {data?.recommendation && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl border border-teal-500/30 bg-gradient-to-r from-teal-950/40 via-[#10131a] to-blue-950/30 shadow-xl">

@@ -160,10 +160,10 @@ export default function Page() {
             </p>
           </div>
         </Topbar>
-        <main className="flex-1 space-y-6 px-5 py-6 sm:px-8">
+        <main className="flex-1 space-y-6 px-4 py-5 sm:px-6 lg:px-8 pb-24 lg:pb-8">
           {loading && (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">
-              กำลังโหลดข้อมูล...
+            <div className="flex h-40 items-center justify-center text-muted-foreground text-sm">
+              <span className="animate-pulse">กำลังโหลดข้อมูล...</span>
             </div>
           )}
           {error && (

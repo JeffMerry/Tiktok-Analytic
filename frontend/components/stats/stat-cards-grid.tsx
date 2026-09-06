@@ -81,7 +81,7 @@ export function StatCardsGrid({
       />
 
       {/* 2. 4-Column Stat Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <FollowersCard
           followers={profile.followers}
           change={metrics.followersChange ?? 0}

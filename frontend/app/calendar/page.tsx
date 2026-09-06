@@ -171,7 +171,7 @@ export default function CalendarPage() {
           </div>
         </Topbar>
 
-        <main className="flex-1 p-4 lg:p-6 space-y-6">
+        <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6 space-y-6">
           {/* Full-Width Calendar Container */}
           <div className="w-full flex flex-col bg-[#10141e] border border-zinc-800/80 rounded-2xl p-5 sm:p-7 shadow-2xl overflow-hidden">
             {/* Calendar Controls Header */}

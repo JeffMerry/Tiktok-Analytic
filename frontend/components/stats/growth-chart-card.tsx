@@ -208,7 +208,7 @@ export function GrowthChartCard({ data, loading }: GrowthChartCardProps) {
           </div>
 
           {/* Tab Switcher Pills */}
-          <div className="flex items-center gap-1 bg-zinc-900/90 border border-zinc-800/90 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-zinc-900/90 border border-zinc-800/90 p-1 rounded-xl shrink-0 self-start sm:self-auto overflow-x-auto max-w-full">
             {(Object.keys(TAB_CONFIG) as ActiveTab[]).map((tabKey) => {
               const tab = TAB_CONFIG[tabKey];
               const isActive = activeTab === tabKey;
@@ -216,7 +216,7 @@ export function GrowthChartCard({ data, loading }: GrowthChartCardProps) {
                 <button
                   key={tabKey}
                   onClick={() => setActiveTab(tabKey)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                     isActive
                       ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                       : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
@@ -230,7 +230,7 @@ export function GrowthChartCard({ data, loading }: GrowthChartCardProps) {
         </div>
 
         {/* Recharts Area Chart */}
-        <div className="w-full h-72 sm:h-80 pt-4">
+        <div className="w-full h-64 sm:h-72 md:h-80 pt-4">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={chartPoints}
