@@ -787,6 +787,11 @@ router.get('/calendar/:username', async (req: Request, res:Response) => {
             };
         });
 
+        // คำนวณสรุปภาพรวมของเดือนนั้น
+        const totalVideos = videos.length;
+        const totalViews = videos.reduce((sum, v) => sum + Number(v.views), 0);
+        const totalLikes = videos.reduce((sum, v) => sum + Number(v.likes), 0);
+
         // return to frontend
         res.json({
             status: 'Success',
