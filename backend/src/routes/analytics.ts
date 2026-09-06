@@ -31,7 +31,7 @@ router.get('/proxy-image', async (req: Request, res: Response) => {
 
             // 1. Check if it is a video cover URL
             const videoQuery = `
-                SELECT v.tiktok_video_id, c.username
+                SELECT v.video_id, c.username
                 FROM videos v
                 JOIN channels c ON c.id = v.channel_id
                 WHERE v.cover_url = $1
@@ -39,11 +39,11 @@ router.get('/proxy-image', async (req: Request, res: Response) => {
             `;
             const videoRes = await db.query(videoQuery, [imageUrl]);
             if (videoRes.rows.length > 0) {
-                const { tiktok_video_id, username } = videoRes.rows[0];
-                const tikwmRes = await axios.get(`https://www.tikwm.com/api/?url=https://www.tiktok.com/@${username}/video/${tiktok_video_id}`);
+                const { video_id, username } = videoRes.rows[0];
+                const tikwmRes = await axios.get(`https://www.tikwm.com/api/?url=https://www.tiktok.com/@${username}/video/${video_id}`);
                 const freshCover = tikwmRes.data?.data?.cover || tikwmRes.data?.data?.origin_cover;
                 if (freshCover) {
-                    await db.query('UPDATE videos SET cover_url = $1 WHERE tiktok_video_id = $2', [freshCover, tiktok_video_id]);
+                    await db.query('UPDATE videos SET cover_url = $1 WHERE video_id = $2', [freshCover, video_id]);
                     const freshStream = await axios.get(freshCover, {
                         responseType: 'stream',
                         headers: {
@@ -87,37 +87,50 @@ router.get('/proxy-image', async (req: Request, res: Response) => {
 });
 
 // Get Overview Statistics GET /api/analytics/channel/:username
-router.get('/channel/:username', async (req:Request , res: Response) => {
-    try{
+router.get('/channel/:username', async (req: Request, res: Response) => {
+    try {
         const { username } = req.params;
 
         const channelQuery = `
             SELECT
                 c.id, c.username, c.display_name, c.avatar_url, c.is_verified,
-                ds.followers_count, ds.likes_count, ds.video_count, ds.record_date
+                ds.followers, ds.total_likes as likes_count, ds.video_count, ds.record_date
             FROM channels c
-            LEFT JOIN daily_stats ds ON c.id = ds.channel_id
+            LEFT JOIN channel_daily_stats ds ON c.id = ds.channel_id
             WHERE c.username = $1
             ORDER BY ds.record_date DESC
             LIMIT 1;
         `;
         const channelRes = await db.query(channelQuery, [username]);
         if (channelRes.rows.length === 0) {
-            return res.status(404).json({ status: 'Error', message: 'ไม่พบข้อมูลช่องนี้ในระบบ'})
+            return res.status(404).json({ status: 'Error', message: 'ไม่พบข้อมูลช่องนี้ในระบบ' });
         }
         const channel = channelRes.rows[0];
 
         const statsQuery = `
             SELECT
-                COUNT(id) as total_videos_in_db,
-                COALESCE(SUM(views_count), 0) as total_views,
-                COALESCE(SUM(Likes_count), 0) as total_likes,
-                COALESCE(SUM(comments_count), 0) as total_comments,
-                COALESCE(SUM(shares_count), 0) as total_shares,
-                COALESCE(ROUND(AVG(views_count), 0), 0) as avg_views,
-                COALESCE(ROUND(AVG(engagement_rate::numeric), 2), 0) as avg_engagement_rate
-            FROM videos
-            WHERE channel_id = $1;
+                COUNT(v.id) as total_videos_in_db,
+                COALESCE(SUM(vs.views), 0) as total_views,
+                COALESCE(SUM(vs.likes), 0) as total_likes,
+                COALESCE(SUM(vs.comments), 0) as total_comments,
+                COALESCE(SUM(vs.shares), 0) as total_shares,
+                COALESCE(ROUND(AVG(vs.views), 0), 0) as avg_views,
+                COALESCE(ROUND(
+                    AVG(
+                        CASE WHEN vs.views > 0 
+                        THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                        ELSE 0 END
+                    ), 2
+                ), 0) as avg_engagement_rate
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1;
         `;
 
         const statsRes = await db.query(statsQuery, [channel.id]);
@@ -125,10 +138,28 @@ router.get('/channel/:username', async (req:Request , res: Response) => {
 
         // Top Performing Video
         const topVideoQuery = `
-            SELECT tiktok_video_id, caption, cover_url, views_count, likes_count, engagement_rate, posted_at
-            FROM videos
-            WHERE channel_id = $1
-            ORDER BY views_count DESC
+            SELECT 
+                v.video_id as tiktok_video_id, 
+                v.caption, 
+                v.cover_url, 
+                COALESCE(vs.views, 0) as views_count, 
+                COALESCE(vs.likes, 0) as likes_count, 
+                COALESCE(ROUND(
+                    CASE WHEN vs.views > 0 
+                    THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                    ELSE 0 END, 2
+                ), 0) as engagement_rate, 
+                v.posted_at
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
+            ORDER BY vs.views DESC NULLS LAST
             LIMIT 1;
         `;
         const topVideoRes = await db.query(topVideoQuery, [channel.id]);
@@ -142,7 +173,7 @@ router.get('/channel/:username', async (req:Request , res: Response) => {
                     displayName: channel.display_name,
                     avatarUrl: channel.avatar_url,
                     isVerified: channel.is_verified,
-                    followers: Number(channel.followers_count || 0),
+                    followers: Number(channel.followers || 0),
                     likes: Number(channel.likes_count || 0),
                     videoCount: Number(channel.video_count || 0),
                 },
@@ -163,57 +194,82 @@ router.get('/channel/:username', async (req:Request , res: Response) => {
     }
 });
 
-//Filter, Search เเละ Pagination GET /api/analytics/videos/:username
-router.get('/videos/:username', async (req:Request , res:Response) => {
+// Filter, Search และ Pagination GET /api/analytics/videos/:username
+router.get('/videos/:username', async (req: Request, res: Response) => {
     try {
-         const { username } = req.params;
-         const limit = parseInt(req.query.limit as string) || 20;
-         const page = parseInt(req.query.page as string) || 1;
-         const offset = (page - 1 ) * limit;
+        const { username } = req.params;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const page = parseInt(req.query.page as string) || 1;
+        const offset = (page - 1) * limit;
 
-         //Sorting Column
-         const allowedSortBy = ['views_count', 'likes_count' , 'comments_count', 'shares_count' , 'engagement_rate', 'posted_at'];
-         const sortByParam = req.query.sortBy as string;
-         const sortBy = allowedSortBy.includes(sortByParam) ? sortByParam : 'posted_at';
-         const order = (req.query.order as string)?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-         const search = req.query.search ? `%${req.query.search}%` : null;
+        // Sorting Column Mapping
+        const sortByParam = req.query.sortBy as string;
+        const sortColumnMap: Record<string, string> = {
+            views_count: 'vs.views',
+            likes_count: 'vs.likes',
+            comments_count: 'vs.comments',
+            shares_count: 'vs.shares',
+            posted_at: 'v.posted_at'
+        };
+        const sortBy = sortColumnMap[sortByParam] || 'v.posted_at';
+        const order = (req.query.order as string)?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const search = req.query.search ? `%${req.query.search}%` : null;
 
-         const channelRes = await db.query<{ id: number}>('SELECT id FROM channels WHERE username = $1', [username]);
-         if (channelRes.rows.length === 0) {
-            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องในระบบนี้'});
-         }
-         const channelId = channelRes.rows[0].id;
+        const channelRes = await db.query<{ id: number }>('SELECT id FROM channels WHERE username = $1', [username]);
+        if (channelRes.rows.length === 0) {
+            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องในระบบนี้' });
+        }
+        const channelId = channelRes.rows[0].id;
 
-         let videosQuery = `
+        let videosQuery = `
             SELECT 
-                tiktok_video_id, caption, cover_url, duration, 
-                views_count, likes_count, comments_count, shares_count, 
-                engagement_rate, posted_at
-            FROM videos
-            WHERE channel_id = $1
-         `;
-         const queryParams: any[] = [channelId];
+                v.video_id as tiktok_video_id, 
+                v.caption, 
+                v.cover_url, 
+                v.duration, 
+                COALESCE(vs.views, 0) as views_count, 
+                COALESCE(vs.likes, 0) as likes_count, 
+                COALESCE(vs.comments, 0) as comments_count, 
+                COALESCE(vs.shares, 0) as shares_count, 
+                COALESCE(vs.favorites, 0) as favorites_count,
+                COALESCE(ROUND(
+                    CASE WHEN vs.views > 0 
+                    THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                    ELSE 0 END, 2
+                ), 0) as engagement_rate, 
+                v.posted_at
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
+        `;
+        const queryParams: any[] = [channelId];
 
-         if (search) {
+        if (search) {
             queryParams.push(search);
-            videosQuery += ` AND caption ILIKE $${queryParams.length}`;
-         }
+            videosQuery += ` AND v.caption ILIKE $${queryParams.length}`;
+        }
 
-         videosQuery +=` ORDER BY ${sortBy} ${order} LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-         queryParams.push(limit, offset);
+        videosQuery += ` ORDER BY ${sortBy} ${order} NULLS LAST LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+        queryParams.push(limit, offset);
 
-         const videosRes = await db.query(videosQuery,queryParams);
+        const videosRes = await db.query(videosQuery, queryParams);
 
-         let countQuery = `SELECT COUNT (id) FROM videos WHERE channel_id = $1`;
-         const countParams: any[] = [channelId];
-         if (search) {
+        let countQuery = `SELECT COUNT(id) FROM videos WHERE channel_id = $1`;
+        const countParams: any[] = [channelId];
+        if (search) {
             countParams.push(search);
             countQuery += ` AND caption ILIKE $2`;
-         }
-         const countRes = await db.query(countQuery, countParams);
-         const totalVideos = parseInt(countRes.rows[0].count);
+        }
+        const countRes = await db.query(countQuery, countParams);
+        const totalVideos = parseInt(countRes.rows[0].count);
 
-         res.json({
+        res.json({
             status: 'Success',
             pagination: {
                 total: totalVideos,
@@ -222,20 +278,20 @@ router.get('/videos/:username', async (req:Request , res:Response) => {
                 totalPages: Math.ceil(totalVideos / limit)
             },
             data: videosRes.rows
-         });
+        });
     } catch (error: any) {
-        res.status(500).json({ status: 'Error', message: error.message});
+        res.status(500).json({ status: 'Error', message: error.message });
     }
 });
 
 // Line Chart GET /api/analytics/trends/:username
-router.get('/trends/:username', async (req: Request , res:Response) => {
+router.get('/trends/:username', async (req: Request, res: Response) => {
     try {
         const { username } = req.params;
 
         const query = `
-            SELECT ds.followers_count, ds.likes_count, ds.video_count, ds.record_date
-            FROM daily_stats ds
+            SELECT ds.followers as followers_count, ds.total_likes as likes_count, ds.video_count, ds.record_date
+            FROM channel_daily_stats ds
             JOIN channels c ON c.id = ds.channel_id
             WHERE c.username = $1
             ORDER BY ds.record_date ASC;
@@ -251,54 +307,79 @@ router.get('/trends/:username', async (req: Request , res:Response) => {
     }
 });
 
-
-// GET /api/analytics/best-time/:username
+// Best Time to Post GET /api/analytics/best-time/:username
 router.get('/best-time/:username', async (req: Request, res: Response) => {
-    try{
+    try {
         const { username } = req.params;
-        // ID for search Tiktok
-        const channelRes = await db.query<{ id: number}>(`SELECT id FROM channels WHERE username = $1`,[username]);
+
+        const channelRes = await db.query<{ id: number }>('SELECT id FROM channels WHERE username = $1', [username]);
         if (channelRes.rows.length === 0) {
-            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องนี้ในระบบ'});
+            return res.status(404).json({ status: 'Error', message: 'ไม่พบช่องนี้ในระบบ' });
         }
         const channelId = channelRes.rows[0].id;
 
-        //Query ดึงสถิติตามวันในสัปดาห์ (0 = อาทิตย์, 1 = จันทร์, ..., 6 = เสาร์)
+        // 1. ดึงสถิติตามวันในสัปดาห์ (0 = อาทิตย์, 1 = จันทร์, ..., 6 = เสาร์)
         const dayQuery = `
-            SELECT
-                EXTRACT(DOW FROM posted_at) as day_index,
-                COUNT(id) as video_count,
-                COALESCE(ROUND(AVG(views_count),0),0) as avg_views,
-                COALESCE(ROUND(AVG(likes_count),0),0) as avg_likes,
-                COALESCE(ROUND(AVG(engagement_rate::numeric),2),0) as avg_engagement
-            FROM videos
-            WHERE channel_id = $1
+            SELECT 
+                EXTRACT(DOW FROM v.posted_at) as day_index,
+                COUNT(v.id) as video_count,
+                COALESCE(ROUND(AVG(vs.views), 0), 0) as avg_views,
+                COALESCE(ROUND(AVG(vs.likes), 0), 0) as avg_likes,
+                COALESCE(ROUND(
+                    AVG(
+                        CASE WHEN vs.views > 0 
+                        THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                        ELSE 0 END
+                    ), 2
+                ), 0) as avg_engagement
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
             GROUP BY day_index
             ORDER BY day_index ASC;
         `;
         const dayRes = await db.query(dayQuery, [channelId]);
 
-        // Query ดึงสถิติตามชั่วโมงในวัน 
+        // 2. ดึงสถิติตามชั่วโมงในวัน (0 - 23 น.)
         const hourQuery = `
-            SELECT
-                EXTRACT(HOUR FROM posted_at) as hour_index,
-                COUNT(id) as video_count,
-                COALESCE(ROUND(AVG(views_count),0),0) as avg_views,
-                COALESCE(ROUND(AVG(likes_count), 0),0) as avg_likes,
-                COALESCE(ROUND(AVG(engagement_rate::numeric), 2), 0) as avg_engagement
-            FROM videos
-            WHERE channel_id = $1
+            SELECT 
+                EXTRACT(HOUR FROM v.posted_at) as hour_index,
+                COUNT(v.id) as video_count,
+                COALESCE(ROUND(AVG(vs.views), 0), 0) as avg_views,
+                COALESCE(ROUND(AVG(vs.likes), 0), 0) as avg_likes,
+                COALESCE(ROUND(
+                    AVG(
+                        CASE WHEN vs.views > 0 
+                        THEN (((vs.likes + vs.comments + vs.shares)::numeric / vs.views) * 100)
+                        ELSE 0 END
+                    ), 2
+                ), 0) as avg_engagement
+            FROM videos v
+            LEFT JOIN LATERAL (
+                SELECT views, likes, comments, shares, favorites
+                FROM video_stats
+                WHERE video_id = v.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) vs ON true
+            WHERE v.channel_id = $1
             GROUP BY hour_index
             ORDER BY hour_index ASC;
         `;
         const hourRes = await db.query(hourQuery, [channelId]);
 
-        // ชื่อในสัปดาห์
-        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        // ชื่อวันในสัปดาห์
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const dayNamesTH = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
 
-        // Map วัน(0-6) ให้ครบทุกวัน เเม้บางวันไม่มีคลิป
-        const byDay = dayNames.map((name,idx) => {
+        // Map วัน (0-6) ให้ครบทุกวัน แม้บางวันไม่มีคลิป
+        const byDay = dayNames.map((name, idx) => {
             const found = dayRes.rows.find((r: any) => Number(r.day_index) === idx);
             return {
                 dayIndex: idx,
@@ -311,12 +392,12 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
             };
         });
 
-        // Map ชั่วโมง(0-23) ให้ครบทุกชั่วโมง
-        const byHour = Array.from({ length: 24}, (_, h) => {
+        // Map ชั่วโมง (0-23 น.) ให้ครบทั้ง 24 ชั่วโมง
+        const byHour = Array.from({ length: 24 }, (_, h) => {
             const found = hourRes.rows.find((r: any) => Number(r.hour_index) === h);
             return {
                 hour: h,
-                label: `${h.toString().padStart(2,'0')}:00`,
+                label: `${h.toString().padStart(2, '0')}:00`,
                 videoCount: Number(found?.video_count || 0),
                 avgViews: Number(found?.avg_views || 0),
                 avgLikes: Number(found?.avg_likes || 0),
@@ -324,9 +405,9 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
             };
         });
 
-        //คำนวณหาวันเเละเวลาที่มียอดวิวเฉลี่ยสูงสุดเพื่อสร้างคำเเนะนำ 
-        const bestDay = [...byDay].sort((a,b) => b.avgViews - a.avgViews)[0];
-        const bestHour = [...byHour].sort((a,b) => b.avgViews - a.avgViews)[0];
+        // คำนวณหาวันและชั่วโมงที่มียอดวิวเฉลี่ยสูงสุด
+        const bestDay = [...byDay].sort((a, b) => b.avgViews - a.avgViews)[0];
+        const bestHour = [...byHour].sort((a, b) => b.avgViews - a.avgViews)[0];
 
         res.json({
             status: 'Success',
@@ -341,12 +422,9 @@ router.get('/best-time/:username', async (req: Request, res: Response) => {
                 byHour
             }
         });
-    } catch (error: any){
-        res.status(500).json({ status: 'Error', message: error.message});
+    } catch (error: any) {
+        res.status(500).json({ status: 'Error', message: error.message });
     }
 });
 
 export default router;
-
-
-

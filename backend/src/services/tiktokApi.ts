@@ -14,24 +14,24 @@ export interface TikTokUserInfo {
   videoCount: number;
 }
 
+// สร้าง Axios Client รวมศูนย์พร้อม Timeout ป้องกัน Request ค้าง
+const tiktokApi = axios.create({
+  baseURL: `https://${process.env.RAPIDAPI_HOST}`,
+  timeout: 15000, // 15 วินาที
+  headers: {
+    'Content-Type': 'application/json',
+    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY as string,
+    'X-RapidAPI-Host': process.env.RAPIDAPI_HOST as string
+  }
+});
+
 // 1. ฟังก์ชันดึงข้อมูลโปรไฟล์ + สถิติช่อง
 export async function fetchAndSaveChannel(username: string): Promise<TikTokUserInfo> {
-  const options = {
-    method: 'GET',
-    url: `https://${process.env.RAPIDAPI_HOST}/user/info`,
-    params: { 
-      unique_id: username // ใช้ unique_id ตามที่ cURL และ TikWM กำหนด
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'X-RapidAPI-Key': process.env.RAPIDAPI_KEY as string,
-      'X-RapidAPI-Host': process.env.RAPIDAPI_HOST as string
-    }
-  };
-
   try {
     console.log(`⏳ [TikWM] กำลังดึงข้อมูลช่อง @${username}...`);
-    const response = await axios.request(options);
+    const response = await tiktokApi.get('/user/info', {
+      params: { unique_id: username }
+    });
     
     // โครงสร้าง Response ของ TikWM
     const rawData = response.data.data;
@@ -70,14 +70,14 @@ export async function fetchAndSaveChannel(username: string): Promise<TikTokUserI
     const channelId = channelRes.rows[0].id;
     const today = new Date().toISOString().split('T')[0];
 
-    // 2. Save สถิติรายวันลงตาราง daily_stats
+    // 2. Save สถิติรายวันลงตาราง channel_daily_stats
     const statsQuery = `
-      INSERT INTO daily_stats (channel_id, followers_count, likes_count, video_count, record_date)
+      INSERT INTO channel_daily_stats (channel_id, followers, total_likes, video_count, record_date)
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (channel_id, record_date)
       DO UPDATE SET
-        followers_count = EXCLUDED.followers_count,
-        likes_count = EXCLUDED.likes_count,
+        followers = EXCLUDED.followers,
+        total_likes = EXCLUDED.total_likes,
         video_count = EXCLUDED.video_count;
     `;
     await db.query(statsQuery, [
@@ -90,7 +90,7 @@ export async function fetchAndSaveChannel(username: string): Promise<TikTokUserI
 
     console.log(`✅ [TikWM] บันทึกสถิติช่อง @${username} ลง Supabase สำเร็จ!`);
     
-    // ดึงวิดีโอ 10 คลิปล่าสุดต่อ
+    // ดึงวิดีโอ 30 คลิปล่าสุดต่อ (ใช้ 1 Request เท่าเดิม)
     await fetchAndSaveUserVideos(channelId, userInfo.username);
 
     return userInfo;
@@ -106,27 +106,19 @@ export async function fetchAndSaveChannel(username: string): Promise<TikTokUserI
   }
 }
 
-// 2. ฟังก์ชันดึงวิดีโอย้อนหลัง
+// 2. ฟังก์ชันดึงวิดีโอย้อนหลัง 30 คลิปล่าสุด (1 Request)
 export async function fetchAndSaveUserVideos(channelId: number, username: string): Promise<void> {
-  const options = {
-    method: 'GET',
-    url: `https://${process.env.RAPIDAPI_HOST}/user/posts`,
-    params: { 
-      unique_id: username, 
-      count: 10,
-      cursor: 0,
-      sort_type: 0
-    },
-    headers: {
-      'Content-Type': 'application/json',
-      'X-RapidAPI-Key': process.env.RAPIDAPI_KEY as string,
-      'X-RapidAPI-Host': process.env.RAPIDAPI_HOST as string
-    }
-  };
-
   try {
-    console.log(`⏳ [TikWM] กำลังดึงวิดีโอย้อนหลังของ @${username}...`);
-    const response = await axios.request(options);
+    console.log(`⏳ [TikWM] กำลังดึง 30 วิดีโอล่าสุดของ @${username}...`);
+    const response = await tiktokApi.get('/user/posts', {
+      params: { 
+        unique_id: username, 
+        count: 30, // ดึง 30 คลิปใน 1 Request ฟรี
+        cursor: 0,
+        sort_type: 0
+      }
+    });
+    
     const videosList = response.data.data?.videos || response.data.videos || [];
 
     for (const vid of videosList) {
@@ -138,43 +130,50 @@ export async function fetchAndSaveUserVideos(channelId: number, username: string
       const likes: number = Number(vid.digg_count || vid.likes || 0);
       const comments: number = Number(vid.comment_count || vid.comments || 0);
       const shares: number = Number(vid.share_count || vid.shares || 0);
+      const favorites: number = Number(vid.collect_count || vid.favorites || 0);
       const duration: number = Number(vid.duration || 0);
       const createTime: number = Number(vid.create_time || Math.floor(Date.now() / 1000));
 
-      const engagementRate = views > 0 
-        ? parseFloat((((likes + comments + shares) / views) * 100).toFixed(2))
-        : 0;
-
+      // 1. บันทึก Metadata ลงตาราง videos
       const videoQuery = `
         INSERT INTO videos (
-          channel_id, tiktok_video_id, caption, cover_url, duration, 
-          views_count, likes_count, comments_count, shares_count, 
-          engagement_rate, posted_at
+          channel_id, video_id, caption, cover_url, duration, posted_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, to_timestamp($11::double precision))
-        ON CONFLICT (tiktok_video_id) 
+        VALUES ($1, $2, $3, $4, $5, to_timestamp($6::double precision))
+        ON CONFLICT (video_id) 
         DO UPDATE SET
           caption = EXCLUDED.caption,
           cover_url = EXCLUDED.cover_url,
-          views_count = EXCLUDED.views_count,
-          likes_count = EXCLUDED.likes_count,
-          comments_count = EXCLUDED.comments_count,
-          shares_count = EXCLUDED.shares_count,
-          engagement_rate = EXCLUDED.engagement_rate;
+          duration = EXCLUDED.duration
+        RETURNING id;
       `;
 
-      await db.query(videoQuery, [
+      const videoRes = await db.query<{ id: number }>(videoQuery, [
         channelId,
         videoId,
         vid.title || vid.desc || '',
         coverUrl,
         duration,
+        createTime
+      ]);
+
+      const insertedVideoDbId = videoRes.rows[0].id;
+
+      // 2. บันทึกสถิติตัวเลขลงตาราง video_stats
+      const statsQuery = `
+        INSERT INTO video_stats (
+          video_id, views, likes, comments, shares, favorites
+        )
+        VALUES ($1, $2, $3, $4, $5, $6);
+      `;
+
+      await db.query(statsQuery, [
+        insertedVideoDbId,
         views,
         likes,
         comments,
         shares,
-        engagementRate,
-        createTime
+        favorites
       ]);
     }
 
@@ -185,7 +184,7 @@ export async function fetchAndSaveUserVideos(channelId: number, username: string
   }
 }
 
-// Backfill ดึงคลิปย้อนหลังทั้งหมด
+// 3. Backfill ดึงคลิปย้อนหลังทั้งหมดของช่อง
 export async function initialBackfillChannelVideos(
   channelId: number, 
   username: string
@@ -199,24 +198,16 @@ export async function initialBackfillChannelVideos(
 
   while (hasMore) {
     try {
-      const reqOptions = {
-        method: 'GET',
-        url: `https://${process.env.RAPIDAPI_HOST}/user/posts`,
+      console.log(`⏳ [Backfill] กำลังดึงชุดคลิปที่ Cursor: ${cursor}...`);
+      const apiRes = await tiktokApi.get('/user/posts', {
         params: { 
           unique_id: username, 
           count: BATCH_SIZE,
           cursor: cursor,
           sort_type: 0
-        },
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RapidAPI-Key': process.env.RAPIDAPI_KEY as string,
-          'X-RapidAPI-Host': process.env.RAPIDAPI_HOST as string
         }
-      };
+      });
 
-      console.log(`⏳ [Backfill] กำลังดึงชุดคลิปที่ Cursor: ${cursor}...`);
-      const apiRes: any = await axios.request(reqOptions);
       const resData = apiRes.data.data || apiRes.data;
       const videosList = resData?.videos || [];
 
@@ -235,43 +226,50 @@ export async function initialBackfillChannelVideos(
         const likes = Number(vid.digg_count || vid.likes || 0);
         const comments = Number(vid.comment_count || vid.comments || 0);
         const shares = Number(vid.share_count || vid.shares || 0);
+        const favorites = Number(vid.collect_count || vid.favorites || 0);
         const duration = Number(vid.duration || 0);
         const createTime = Number(vid.create_time || Math.floor(Date.now() / 1000));
 
-        const engagementRate = views > 0 
-          ? parseFloat((((likes + comments + shares) / views) * 100).toFixed(2))
-          : 0;
-
+        // 1. บันทึก Metadata ลง videos
         const videoQuery = `
           INSERT INTO videos (
-            channel_id, tiktok_video_id, caption, cover_url, duration, 
-            views_count, likes_count, comments_count, shares_count, 
-            engagement_rate, posted_at
+            channel_id, video_id, caption, cover_url, duration, posted_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, to_timestamp($11::double precision))
-          ON CONFLICT (tiktok_video_id) 
+          VALUES ($1, $2, $3, $4, $5, to_timestamp($6::double precision))
+          ON CONFLICT (video_id) 
           DO UPDATE SET
             caption = EXCLUDED.caption,
             cover_url = EXCLUDED.cover_url,
-            views_count = EXCLUDED.views_count,
-            likes_count = EXCLUDED.likes_count,
-            comments_count = EXCLUDED.comments_count,
-            shares_count = EXCLUDED.shares_count,
-            engagement_rate = EXCLUDED.engagement_rate;
+            duration = EXCLUDED.duration
+          RETURNING id;
         `;
 
-        await db.query(videoQuery, [
+        const videoRes = await db.query<{ id: number }>(videoQuery, [
           channelId,
           videoId,
           vid.title || vid.desc || '',
           coverUrl,
           duration,
+          createTime
+        ]);
+
+        const insertedVideoDbId = videoRes.rows[0].id;
+
+        // 2. บันทึกสถิติตัวเลขลง video_stats
+        const statsQuery = `
+          INSERT INTO video_stats (
+            video_id, views, likes, comments, shares, favorites
+          )
+          VALUES ($1, $2, $3, $4, $5, $6);
+        `;
+
+        await db.query(statsQuery, [
+          insertedVideoDbId,
           views,
           likes,
           comments,
           shares,
-          engagementRate,
-          createTime
+          favorites
         ]);
       }
 

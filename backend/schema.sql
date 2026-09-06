@@ -8,41 +8,51 @@ CREATE TABLE IF NOT EXISTS channels (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. ตารางเก็บสถิติรายวัน (สำหรับ Cron Job Tracker)
-CREATE TABLE IF NOT EXISTS daily_stats (
+-- 2. ตารางเก็บสถิติช่องรายวัน (สำหรับ Cron Job Tracker)
+CREATE TABLE IF NOT EXISTS channel_daily_stats (
     id SERIAL PRIMARY KEY,
     channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
-    followers_count INT NOT NULL,
-    likes_count INT NOT NULL,
+    followers INT NOT NULL,
+    total_likes INT NOT NULL,
     video_count INT NOT NULL,
     record_date DATE NOT NULL,
     fetched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(channel_id, record_date)
 );
 
--- 3. ตารางเก็บข้อมูลระดับวิดีโอ (สำหรับ Video Performance Analysis)
+-- 3. ตารางเก็บข้อมูลระดับวิดีโอ (Metadata คงที่)
 CREATE TABLE IF NOT EXISTS videos (
     id SERIAL PRIMARY KEY,
     channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
-    tiktok_video_id VARCHAR(100) UNIQUE NOT NULL,
+    video_id VARCHAR(100) UNIQUE NOT NULL,
     caption TEXT,
     duration INT,
-    views_count INT DEFAULT 0,
-    likes_count INT DEFAULT 0,
-    comments_count INT DEFAULT 0,
-    shares_count INT DEFAULT 0,
-    engagement_rate NUMERIC(5, 2),
+    cover_url TEXT,
     posted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. ตารางเก็บสถิติเชิงลึกหลังบ้านจากไฟล์ CSV
-CREATE TABLE IF NOT EXISTS channel_private_insights (
+-- 4. ตารางเก็บสถิติตัวเลขวิดีโอ (Time-series Video Stats)
+CREATE TABLE IF NOT EXISTS video_stats (
+    id SERIAL PRIMARY KEY,
+    video_id INT REFERENCES videos(id) ON DELETE CASCADE,
+    views INT DEFAULT 0,
+    likes INT DEFAULT 0,
+    comments INT DEFAULT 0,
+    shares INT DEFAULT 0,
+    favorites INT DEFAULT 0,
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. ตารางเก็บสถิติเชิงลึกหลังบ้าน
+CREATE TABLE IF NOT EXISTS channel_insights (
     id SERIAL PRIMARY KEY,
     channel_id INT REFERENCES channels(id) ON DELETE CASCADE,
+    period_start DATE,
+    period_end DATE,
     gender_ratio JSONB,
     age_distribution JSONB,
-    top_territories JSONB,
+    territories JSONB,
     traffic_sources JSONB,
     completion_rate NUMERIC(5, 2),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
