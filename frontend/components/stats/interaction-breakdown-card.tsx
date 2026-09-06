@@ -36,7 +36,7 @@ export function InteractionBreakdownCard({ data }: InteractionBreakdownCardProps
   }, [likes, comments, shares]);
 
   return (
-    <div className="w-full bg-[#121212] border border-zinc-800/80 rounded-2xl p-4 sm:p-5 text-zinc-100 shadow-xl">
+    <div className="w-full bg-[#10131a] border border-zinc-800/80 rounded-2xl p-4 sm:p-5 text-zinc-100 shadow-xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200 shrink-0">

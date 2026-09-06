@@ -85,7 +85,7 @@ export function BaseStatCard({
   return (
     <div
       className={cn(
-        "flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm transition-all hover:border-border/80",
+        "flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-[#10131a] p-5 shadow-xl transition-all hover:border-zinc-700/90",
         className
       )}
     >

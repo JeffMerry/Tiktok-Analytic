@@ -111,7 +111,7 @@ export function TopVideosCard({
   const maxViews = Math.max(...videos.map((v) => v.views), 1);
 
   return (
-    <div className="w-full bg-[#121212] border border-zinc-800/80 rounded-2xl p-4 sm:p-5 text-zinc-100 shadow-xl overflow-hidden">
+    <div className="w-full bg-[#10131a] border border-zinc-800/80 rounded-2xl p-4 sm:p-5 text-zinc-100 shadow-xl overflow-hidden">
       {/* Card Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">

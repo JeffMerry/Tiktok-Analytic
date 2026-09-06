@@ -32,7 +32,7 @@ export function ProfileCard({
   return (
     <div
       className={cn(
-        "flex flex-col justify-between rounded-2xl border border-border/60 bg-card p-5 sm:p-6 shadow-md transition-all hover:border-border/100",
+        "flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-[#10131a] p-5 sm:p-6 shadow-xl transition-all hover:border-zinc-700/90",
         className
       )}
     >
