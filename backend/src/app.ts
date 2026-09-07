@@ -59,7 +59,7 @@ app.get('/api/backfill/:username', async (req: Request, res: Response) => {
 });
 
 // Endpoint สำหรับ Cron-Job (Lightweight response ป้องกัน Output Too Large)
-app.get('/api/cron/daily-sync/:username?', async (req: Request, res: Response) => {
+const handleCronSync = async (req: Request, res: Response) => {
     try {
         const targetUser = (req.params.username as string) || (req.query.username as string) || 'jjayallday';
         console.log(`⏰ [Cron-Job] เริ่ม Sync ข้อมูลประจำวันสำหรับ @${targetUser}...`);
@@ -76,7 +76,10 @@ app.get('/api/cron/daily-sync/:username?', async (req: Request, res: Response) =
         console.error('❌ [Cron-Job] เกิดข้อผิดพลาด:', error.message);
         res.status(500).json({ ok: false, error: error.message });
     }
-});
+};
+
+app.get('/api/cron/daily-sync', handleCronSync);
+app.get('/api/cron/daily-sync/:username', handleCronSync);
 
 app.listen(PORT, () => {
     console.log(`🚀 TypeScript Server listening on http://localhost:${PORT}`);
