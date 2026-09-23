@@ -7,7 +7,7 @@ import analyticsRouter from './routes/analytics';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
@@ -81,6 +81,6 @@ const handleCronSync = async (req: Request, res: Response) => {
 app.get('/api/cron/daily-sync', handleCronSync);
 app.get('/api/cron/daily-sync/:username', handleCronSync);
 
-app.listen(PORT, () => {
-    console.log(`🚀 TypeScript Server listening on http://localhost:${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 TypeScript Server listening on port ${PORT}`);
 });
