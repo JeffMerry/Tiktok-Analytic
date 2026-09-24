@@ -1,0 +1,87 @@
+
+name: Deploy TikTok Analytics Backend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tiktok-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy TikTok to DigitalOcean
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/tiktok_ci
+          chmod 600 ~/.ssh/tiktok_ci
+
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy Backend
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/tiktok_ci \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+
+          cd /home/jeff/apps/Tiktok-Analytic
+
+          echo "Pulling latest code..."
+          git pull --ff-only origin main
+
+          cd backend
+
+          echo "Installing dependencies..."
+          npm ci
+
+          echo "Building TypeScript..."
+          npm run build
+
+          echo "Restarting TikTok Backend..."
+          pm2 restart tiktok-analytics
+
+          echo "Waiting for Backend..."
+          ready=0
+
+          for i in $(seq 1 12); do
+            if curl --fail --silent --show-error \
+              --max-time 10 \
+              --output /dev/null \
+              http://127.0.0.1:5001/health; then
+              echo "TikTok Backend is ready!"
+              ready=1
+              break
+            fi
+
+            echo "Attempt $i failed. Retrying..."
+            sleep 5
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo "Backend failed health check"
+            pm2 logs tiktok-analytics --lines 30 --nostream
+            exit 1
+          fi
+
+          echo "Deployment Success!"
+          REMOTE
