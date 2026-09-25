@@ -8,6 +8,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const HOST = process.env.HOST || '127.0.0.1';
 
 app.use(cors());
 app.use(express.json());
@@ -81,6 +82,6 @@ const handleCronSync = async (req: Request, res: Response) => {
 app.get('/api/cron/daily-sync', handleCronSync);
 app.get('/api/cron/daily-sync/:username', handleCronSync);
 
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`🚀 TypeScript Server listening on port ${PORT}`);
+app.listen(Number(PORT), HOST, () => {
+  console.log(`TikTok Analytics Backend runs on http://${HOST}:${PORT}`);
 });
